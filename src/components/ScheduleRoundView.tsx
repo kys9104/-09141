@@ -28,6 +28,8 @@ import { StorageService } from '../services/storageService';
 
 interface ScheduleRoundViewProps {
   currentUser: UserProfile | null;
+  selectedRoundId?: number;
+  onSelectRoundId?: (roundId: number) => void;
   onOpenLineupModal: (tieMatchId: string, roundId: number) => void;
   onOpenResultEntryModal: (tieMatchId: string, subMatchId: string) => void;
   onOpenLiveScoreModal: (tieMatchId: string, subMatchId: string) => void;
@@ -37,13 +39,25 @@ interface ScheduleRoundViewProps {
 
 export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
   currentUser,
+  selectedRoundId: propSelectedRoundId,
+  onSelectRoundId,
   onOpenLineupModal,
   onOpenResultEntryModal,
   onOpenLiveScoreModal,
   onOpenDiaryModal,
   onResultDeleted
 }) => {
-  const [selectedRoundId, setSelectedRoundId] = useState<number>(1);
+  const [internalRoundId, setInternalRoundId] = useState<number>(1);
+  const selectedRoundId = propSelectedRoundId !== undefined ? propSelectedRoundId : internalRoundId;
+
+  const handleSelectRound = (roundId: number) => {
+    if (onSelectRoundId) {
+      onSelectRoundId(roundId);
+    } else {
+      setInternalRoundId(roundId);
+    }
+  };
+
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
     type: 'SUBMATCH' | 'TIE';
@@ -125,7 +139,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
           return (
             <button
               key={round.id}
-              onClick={() => setSelectedRoundId(round.id)}
+              onClick={() => handleSelectRound(round.id)}
               className={`p-3.5 rounded-xl text-left border transition-all ${
                 isSelected
                   ? 'bg-[#161E31] border-[#E2FF00] shadow-[0_0_15px_rgba(226,255,0,0.15)]'

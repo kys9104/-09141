@@ -18,6 +18,9 @@ export default function App() {
   // Navigation tab state
   const [activeTab, setActiveTab] = useState<string>('STANDINGS');
 
+  // Selected schedule round state
+  const [selectedRoundId, setSelectedRoundId] = useState<number>(1);
+
   // User auth state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(StorageService.getUserSession());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
@@ -143,6 +146,8 @@ export default function App() {
           <ScheduleRoundView
             key={`schedule-${refreshKey}`}
             currentUser={currentUser}
+            selectedRoundId={selectedRoundId}
+            onSelectRoundId={setSelectedRoundId}
             onOpenLineupModal={handleOpenLineupModal}
             onOpenResultEntryModal={handleOpenResultEntry}
             onOpenLiveScoreModal={handleOpenLiveScore}
