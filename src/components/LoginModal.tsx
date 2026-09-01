@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   User, 
@@ -7,10 +7,12 @@ import {
   Activity, 
   Lock, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import { GradeLevel, UserProfile, UserRole } from '../types';
 import { StorageService } from '../services/storageService';
+import { OFFICIAL_STUDENTS_ROSTER } from '../data/initialData';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -26,12 +28,30 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [grade, setGrade] = useState<GradeLevel>(1);
   const [classNum, setClassNum] = useState<number>(1);
   const [studentNum, setStudentNum] = useState<number>(1);
-  const [name, setName] = useState<string>('');
+  const [name, setName] = useState<string>('곽승준');
   const [role, setRole] = useState<UserRole>('STUDENT');
   const [isSportsRep, setIsSportsRep] = useState<boolean>(false);
   const [teacherPassword, setTeacherPassword] = useState<string>('');
   const [studentCouncilPassword, setStudentCouncilPassword] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  const currentClassKey = `${grade}-${classNum}`;
+  const classRoster = OFFICIAL_STUDENTS_ROSTER[currentClassKey] || [];
+
+  // Auto-sync name when grade/class/studentNum changes if in student mode
+  useEffect(() => {
+    if (role === 'TEACHER') {
+      setName('체육교사');
+    } else {
+      const match = classRoster.find(s => s.num === studentNum);
+      if (match) {
+        setName(match.name);
+      } else if (classRoster.length > 0) {
+        setStudentNum(classRoster[0].num);
+        setName(classRoster[0].name);
+      }
+    }
+  }, [grade, classNum, studentNum, role]);
 
   if (!isOpen) return null;
 
@@ -274,10 +294,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </select>
             </div>
 
-            {/* Number dropdown (1 ~ 21) */}
+            {/* Number dropdown (dynamically populated from class roster) */}
             <div>
               <label className="block text-xs font-semibold text-white/70 mb-1.5 font-mono">
-                번호 (1~21)
+                번호 ({classRoster.length}명)
               </label>
               <select
                 id="student-num-select"
@@ -285,26 +305,31 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 onChange={(e) => setStudentNum(Number(e.target.value))}
                 className="w-full px-3 py-2 rounded-xl bg-[#0A0F1D] border border-white/10 text-white font-medium focus:outline-none focus:border-[#E2FF00] text-sm font-mono"
               >
-                {Array.from({ length: 21 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>
-                    {n}번
+                {classRoster.map((s) => (
+                  <option key={s.num} value={s.num}>
+                    {s.num}번 ({s.name})
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Name Text Input */}
+          {/* Name Text Input / Verification */}
           <div>
-            <label className="block text-xs font-semibold text-white/70 mb-1.5">
-              이름 (직접 입력)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-white/70">
+                학생 성명 (확인 및 수정)
+              </label>
+              <span className="text-[10px] text-[#E2FF00] flex items-center gap-1 font-mono">
+                <Sparkles className="w-3 h-3" /> 학적 명단 자동 동기화
+              </span>
+            </div>
             <input
               type="text"
               id="student-name-input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="예: 김민준, 박태양, 홍길동"
+              placeholder="예: 곽승준, 김건우"
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-medium"
             />
           </div>

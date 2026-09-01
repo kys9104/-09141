@@ -120,19 +120,104 @@ export const LEAGUE_ROUNDS: RoundInfo[] = [
   }
 ];
 
-// Generate anonymized roster of 21 students for each class (1~10: Male, 11~21: Female)
+// Official Student Roster (신안해양과학고등학교 배드민턴 리그 명단)
+export const OFFICIAL_STUDENTS_ROSTER: Record<string, { num: number; name: string; gender: 'M' | 'F' }[]> = {
+  '1-1': [
+    { num: 1, name: '곽승준', gender: 'M' },
+    { num: 2, name: '김건우', gender: 'M' },
+    { num: 3, name: '김준성', gender: 'M' },
+    { num: 4, name: '김현지', gender: 'F' },
+    { num: 5, name: '명지호', gender: 'M' },
+    { num: 6, name: '박재형', gender: 'M' },
+    { num: 7, name: '박주영', gender: 'M' },
+    { num: 8, name: '박호연', gender: 'M' },
+    { num: 9, name: '백호', gender: 'M' },
+    { num: 10, name: '선준혁', gender: 'M' },
+    { num: 11, name: '송현우', gender: 'M' },
+    { num: 12, name: '양준성', gender: 'M' },
+    { num: 13, name: '이관훈', gender: 'M' },
+    { num: 14, name: '이민수', gender: 'M' },
+    { num: 15, name: '이수인', gender: 'F' },
+    { num: 16, name: '이예준', gender: 'M' },
+    { num: 17, name: '임솔지', gender: 'F' },
+    { num: 18, name: '장범석', gender: 'M' },
+    { num: 19, name: '정찬주', gender: 'M' },
+    { num: 20, name: '조희우', gender: 'M' },
+    { num: 21, name: '홍서현', gender: 'F' }
+  ],
+  '1-2': [
+    { num: 1, name: '강성수', gender: 'M' },
+    { num: 2, name: '권태인', gender: 'M' },
+    { num: 3, name: '김보현', gender: 'F' },
+    { num: 4, name: '김예준', gender: 'M' },
+    { num: 5, name: '문경호', gender: 'M' },
+    { num: 6, name: '박이한', gender: 'M' },
+    { num: 7, name: '박해일', gender: 'M' },
+    { num: 8, name: '백승광', gender: 'M' },
+    { num: 9, name: '백현주', gender: 'F' },
+    { num: 10, name: '신예영', gender: 'F' },
+    { num: 11, name: '윤호현', gender: 'M' },
+    { num: 12, name: '이진우', gender: 'M' },
+    { num: 13, name: '이진주', gender: 'F' },
+    { num: 14, name: '이진혁', gender: 'M' },
+    { num: 15, name: '이채아', gender: 'F' },
+    { num: 16, name: '정솔비', gender: 'F' },
+    { num: 17, name: '조하얀', gender: 'F' },
+    { num: 18, name: '주단비', gender: 'F' },
+    { num: 19, name: '최우진', gender: 'M' },
+    { num: 20, name: '최현성', gender: 'M' }
+  ],
+  '2-1': [
+    { num: 1, name: '강성률', gender: 'M' },
+    { num: 2, name: '고아영', gender: 'F' },
+    { num: 3, name: '김서윤', gender: 'F' },
+    { num: 4, name: '김서준', gender: 'M' },
+    { num: 5, name: '김승준', gender: 'M' },
+    { num: 6, name: '김예찬', gender: 'M' },
+    { num: 7, name: '김주엘', gender: 'F' },
+    { num: 8, name: '김현우', gender: 'M' },
+    { num: 9, name: '신승민', gender: 'M' },
+    { num: 10, name: '안현서', gender: 'F' },
+    { num: 11, name: '이지후', gender: 'M' },
+    { num: 12, name: '이하늘', gender: 'F' },
+    { num: 13, name: '장준혁', gender: 'M' },
+    { num: 14, name: '정서연', gender: 'F' },
+    { num: 15, name: '주시은', gender: 'F' },
+    { num: 16, name: '주혜진', gender: 'F' },
+    { num: 17, name: '한주아', gender: 'F' },
+    { num: 18, name: '한준범', gender: 'M' }
+  ],
+  '2-2': [
+    { num: 1, name: '김다은', gender: 'F' },
+    { num: 2, name: '김대륜', gender: 'M' },
+    { num: 3, name: '김승민', gender: 'M' },
+    { num: 4, name: '김희주', gender: 'F' },
+    { num: 5, name: '문경원', gender: 'M' },
+    { num: 6, name: '문대호', gender: 'M' },
+    { num: 7, name: '박대성', gender: 'M' },
+    { num: 8, name: '박찬수', gender: 'M' },
+    { num: 9, name: '승주빈', gender: 'M' },
+    { num: 10, name: '유동준', gender: 'M' },
+    { num: 11, name: '이민서', gender: 'F' },
+    { num: 12, name: '이태형', gender: 'M' },
+    { num: 13, name: '장성효', gender: 'M' },
+    { num: 14, name: '진재원', gender: 'M' },
+    { num: 15, name: '최가은', gender: 'F' },
+    { num: 16, name: '최지윤', gender: 'F' },
+    { num: 17, name: '하태민', gender: 'M' }
+  ]
+};
+
 const createClassRoster = (grade: 1 | 2, classNum: number): Player[] => {
-  const list: Player[] = [];
-  for (let num = 1; num <= 21; num++) {
-    list.push({
-      grade,
-      classNum,
-      studentNum: num,
-      name: `${num}번 학생`,
-      gender: num <= 10 ? 'M' : 'F'
-    });
-  }
-  return list;
+  const key = `${grade}-${classNum}`;
+  const list = OFFICIAL_STUDENTS_ROSTER[key] || [];
+  return list.map(item => ({
+    grade,
+    classNum,
+    studentNum: item.num,
+    name: item.name,
+    gender: item.gender
+  }));
 };
 
 export const SAMPLE_STUDENTS: Record<string, Player[]> = {
@@ -144,10 +229,10 @@ export const SAMPLE_STUDENTS: Record<string, Player[]> = {
 
 // Default Sports Representatives
 export const DEFAULT_SPORTS_REPRESENTATIVES: Record<string, string> = {
-  '1-1': '1번 학생',
-  '1-2': '1번 학생',
-  '2-1': '1번 학생',
-  '2-2': '1번 학생'
+  '1-1': '곽승준',
+  '1-2': '강성수',
+  '2-1': '강성률',
+  '2-2': '김대륜'
 };
 
 // Helper to create 5 submatches per tie match (Single-set 15-point games)
