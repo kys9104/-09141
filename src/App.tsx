@@ -204,8 +204,10 @@ export default function App() {
         isOpen={liveScoreState.isOpen}
         tieMatchId={liveScoreState.tieMatchId}
         subMatchId={liveScoreState.subMatchId}
+        currentUser={currentUser}
         onClose={() => setLiveScoreState({ isOpen: false, tieMatchId: null, subMatchId: null })}
         onScoreUpdated={triggerRefresh}
+        onOpenLogin={() => setIsLoginModalOpen(true)}
       />
 
       <GASIntegrationModal

@@ -64,8 +64,14 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
 
   const roundInfo = LEAGUE_ROUNDS.find(r => r.id === roundId) || LEAGUE_ROUNDS[0];
   const allStudents = StorageService.getStudents(currentGrade, currentClass);
-  const maleStudents = allStudents.filter(s => s.gender === 'M');
-  const femaleStudents = allStudents.filter(s => s.gender === 'F');
+
+  // Helper to format student label
+  const getStudentLabel = (s: Player) => {
+    if (s.name === `${s.studentNum}번 학생` || s.name === `${s.studentNum}번`) {
+      return `${s.studentNum}번 학생`;
+    }
+    return `${s.studentNum}번 ${s.name}`;
+  };
 
   // Pre-load existing lineup if available
   useEffect(() => {
@@ -97,10 +103,8 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
         setWdPlayer2(players[1]?.name || '');
       }
       if (sm.category === 'MIXED_DOUBLES') {
-        const male = players.find(p => p.gender === 'M');
-        const female = players.find(p => p.gender === 'F');
-        setXdPlayerM(male?.name || '');
-        setXdPlayerF(female?.name || '');
+        setXdPlayerM(players[0]?.name || '');
+        setXdPlayerF(players[1]?.name || '');
       }
     });
   }, [selectedSide, tieMatchId, isOpen]);
@@ -125,15 +129,17 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
     const isTeamA = selectedSide === 'A';
 
     // Helper to find player object
-    const findP = (name: string, gender: 'M' | 'F'): Player => {
+    const findP = (name: string, defaultGender: 'M' | 'F'): Player => {
       const found = allStudents.find(s => s.name === name);
       if (found) return found;
+      const numMatch = name.match(/(\d+)번/);
+      const num = numMatch ? parseInt(numMatch[1], 10) : 1;
       return {
         grade: currentGrade,
         classNum: currentClass,
-        studentNum: 1,
-        name: name || '선수',
-        gender
+        studentNum: num,
+        name: name || `${num}번 학생`,
+        gender: defaultGender
       };
     };
 
@@ -245,7 +251,7 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
           {/* 5 Categories Inputs */}
           <div className="space-y-4">
             
-            {/* 1. Men's Singles (1 Male) */}
+            {/* 1. Men's Singles (1 Player) */}
             <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5">
@@ -258,16 +264,16 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
                 onChange={(e) => setMsPlayer(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
               >
-                <option value="">-- 출전 선수 선택 --</option>
-                {maleStudents.map(s => (
+                <option value="">-- 출전 선수 선택 (1~21번) --</option>
+                {allStudents.map(s => (
                   <option key={s.studentNum} value={s.name}>
-                    {s.studentNum}번 {s.name}
+                    {getStudentLabel(s)}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 2. Women's Singles (1 Female) */}
+            {/* 2. Women's Singles (1 Player) */}
             <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5">
@@ -280,16 +286,16 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
                 onChange={(e) => setWsPlayer(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
               >
-                <option value="">-- 출전 선수 선택 --</option>
-                {femaleStudents.map(s => (
+                <option value="">-- 출전 선수 선택 (1~21번) --</option>
+                {allStudents.map(s => (
                   <option key={s.studentNum} value={s.name}>
-                    {s.studentNum}번 {s.name}
+                    {getStudentLabel(s)}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 3. Men's Doubles (2 Males) */}
+            {/* 3. Men's Doubles (2 Players) */}
             <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5">
@@ -303,10 +309,10 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
                   onChange={(e) => setMdPlayer1(e.target.value)}
                   className="px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
                 >
-                  <option value="">선수 1 선택</option>
-                  {maleStudents.map(s => (
+                  <option value="">선수 1 선택 (1~21번)</option>
+                  {allStudents.map(s => (
                     <option key={s.studentNum} value={s.name}>
-                      {s.studentNum}번 {s.name}
+                      {getStudentLabel(s)}
                     </option>
                   ))}
                 </select>
@@ -315,17 +321,17 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
                   onChange={(e) => setMdPlayer2(e.target.value)}
                   className="px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
                 >
-                  <option value="">선수 2 선택</option>
-                  {maleStudents.map(s => (
+                  <option value="">선수 2 선택 (1~21번)</option>
+                  {allStudents.map(s => (
                     <option key={s.studentNum} value={s.name}>
-                      {s.studentNum}번 {s.name}
+                      {getStudentLabel(s)}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
 
-            {/* 4. Women's Doubles (2 Females) */}
+            {/* 4. Women's Doubles (2 Players) */}
             <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5">
@@ -339,10 +345,10 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
                   onChange={(e) => setWdPlayer1(e.target.value)}
                   className="px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
                 >
-                  <option value="">선수 1 선택</option>
-                  {femaleStudents.map(s => (
+                  <option value="">선수 1 선택 (1~21번)</option>
+                  {allStudents.map(s => (
                     <option key={s.studentNum} value={s.name}>
-                      {s.studentNum}번 {s.name}
+                      {getStudentLabel(s)}
                     </option>
                   ))}
                 </select>
@@ -351,21 +357,21 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
                   onChange={(e) => setWdPlayer2(e.target.value)}
                   className="px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
                 >
-                  <option value="">선수 2 선택</option>
-                  {femaleStudents.map(s => (
+                  <option value="">선수 2 선택 (1~21번)</option>
+                  {allStudents.map(s => (
                     <option key={s.studentNum} value={s.name}>
-                      {s.studentNum}번 {s.name}
+                      {getStudentLabel(s)}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
 
-            {/* 5. Mixed Doubles (1 Male + 1 Female) */}
+            {/* 5. Mixed Doubles (2 Players) */}
             <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5">
-                  🏸 5. 혼합 복식 (남1 + 여1)
+                  🏸 5. 혼합 복식 (2명 1조)
                 </span>
                 <span className="text-[11px] text-white/40 font-mono">단판 15점</span>
               </div>
@@ -375,10 +381,10 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
                   onChange={(e) => setXdPlayerM(e.target.value)}
                   className="px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
                 >
-                  <option value="">남학생 선수 선택</option>
-                  {maleStudents.map(s => (
+                  <option value="">선수 1 선택 (1~21번)</option>
+                  {allStudents.map(s => (
                     <option key={s.studentNum} value={s.name}>
-                      {s.studentNum}번 {s.name}
+                      {getStudentLabel(s)}
                     </option>
                   ))}
                 </select>
@@ -387,10 +393,10 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
                   onChange={(e) => setXdPlayerF(e.target.value)}
                   className="px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
                 >
-                  <option value="">여학생 선수 선택</option>
-                  {femaleStudents.map(s => (
+                  <option value="">선수 2 선택 (1~21번)</option>
+                  {allStudents.map(s => (
                     <option key={s.studentNum} value={s.name}>
-                      {s.studentNum}번 {s.name}
+                      {getStudentLabel(s)}
                     </option>
                   ))}
                 </select>

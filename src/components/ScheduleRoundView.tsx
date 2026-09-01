@@ -154,7 +154,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#E2FF00] hover:bg-[#d0ea00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)] transition"
             >
               <UserCheck className="w-4 h-4 text-black" />
-              <span>출전명단 작성 및 수정</span>
+              <span>출전명단 작성</span>
             </button>
           )}
 
@@ -250,7 +250,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                         onClick={() => onOpenLineupModal(tie.id, tie.roundId)}
                         className="px-3 py-1 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition"
                       >
-                        명단 등록/수정
+                        출전명단 작성
                       </button>
                     )}
                   </div>

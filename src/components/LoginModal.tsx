@@ -30,6 +30,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [role, setRole] = useState<UserRole>('STUDENT');
   const [isSportsRep, setIsSportsRep] = useState<boolean>(false);
   const [teacherPassword, setTeacherPassword] = useState<string>('');
+  const [studentCouncilPassword, setStudentCouncilPassword] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   if (!isOpen) return null;
@@ -52,6 +53,28 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       };
       StorageService.saveCurrentUser(teacherProfile);
       onLoginSuccess(teacherProfile);
+      onClose();
+      return;
+    }
+
+    if (role === 'STUDENT_COUNCIL') {
+      if (studentCouncilPassword !== '8650') {
+        setErrorMessage('학생자치회 접근 비밀번호가 일치하지 않습니다.');
+        return;
+      }
+      if (!name.trim()) {
+        setErrorMessage('학생자치회 학생 이름을 입력해주세요.');
+        return;
+      }
+      const councilProfile: UserProfile = {
+        grade,
+        classNum,
+        studentNum,
+        name: name.trim(),
+        role: 'STUDENT_COUNCIL'
+      };
+      StorageService.saveCurrentUser(councilProfile);
+      onLoginSuccess(councilProfile);
       onClose();
       return;
     }
@@ -179,12 +202,31 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           </div>
 
+          {/* Student Council Password Input when Student Council selected */}
+          {role === 'STUDENT_COUNCIL' && (
+            <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
+                  <Lock className="w-3.5 h-3.5" /> 학생자치회 비밀번호 인증
+                </label>
+              </div>
+              <input
+                type="password"
+                id="student-council-password-input"
+                value={studentCouncilPassword}
+                onChange={(e) => setStudentCouncilPassword(e.target.value)}
+                placeholder="비밀번호 입력"
+                className="w-full px-3.5 py-2 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono"
+              />
+            </div>
+          )}
+
           {/* Teacher Password Input when Teacher selected */}
           {role === 'TEACHER' && (
             <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/30 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
-                  <Lock className="w-3.5 h-3.5" /> TEACHER PASSCODE
+                  <Lock className="w-3.5 h-3.5" /> 체육교사 비밀번호 인증
                 </label>
               </div>
               <input

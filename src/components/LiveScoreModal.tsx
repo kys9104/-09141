@@ -12,7 +12,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { SubMatch, TieMatch, SetScore, MatchCategory } from '../types';
+import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile } from '../types';
 import { StorageService } from '../services/storageService';
 import { GASService } from '../services/gasService';
 
@@ -20,16 +20,20 @@ interface LiveScoreModalProps {
   isOpen: boolean;
   tieMatchId: string | null;
   subMatchId: string | null;
+  currentUser: UserProfile | null;
   onClose: () => void;
   onScoreUpdated: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
   isOpen,
   tieMatchId,
   subMatchId,
+  currentUser,
   onClose,
-  onScoreUpdated
+  onScoreUpdated,
+  onOpenLogin
 }) => {
   const [tie, setTie] = useState<TieMatch | null>(null);
   const [subMatch, setSubMatch] = useState<SubMatch | null>(null);
@@ -84,8 +88,10 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
 
   const teamAGrade = tie.teamAGrade || tie.grade || 1;
   const teamBGrade = tie.teamBGrade || tie.grade || 1;
+  const canEditScore = currentUser?.role === 'STUDENT_COUNCIL' || currentUser?.role === 'TEACHER';
 
   const addPointA = () => {
+    if (!canEditScore) return;
     const next = scoreA + 1;
     setScoreA(next);
     setServingTeam('A');
@@ -93,11 +99,12 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
   };
 
   const subtractPointA = () => {
-    if (scoreA <= 0) return;
+    if (!canEditScore || scoreA <= 0) return;
     setScoreA(scoreA - 1);
   };
 
   const addPointB = () => {
+    if (!canEditScore) return;
     const next = scoreB + 1;
     setScoreB(next);
     setServingTeam('B');
@@ -105,7 +112,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
   };
 
   const subtractPointB = () => {
-    if (scoreB <= 0) return;
+    if (!canEditScore || scoreB <= 0) return;
     setScoreB(scoreB - 1);
   };
 
@@ -124,6 +131,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
   };
 
   const handleSaveAndFinalize = (isFinalMatch: boolean = false) => {
+    if (!canEditScore) return;
     const matches = StorageService.getMatches();
     const tieIdx = matches.findIndex(m => m.id === tieMatchId);
     if (tieIdx === -1) return;
@@ -231,6 +239,35 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
           </button>
         </div>
 
+        {/* Permission Notice Banner for Non-Student Council */}
+        {!canEditScore ? (
+          <div className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between text-xs text-amber-300">
+            <div className="flex items-center gap-2 font-medium">
+              <span className="font-bold">⚠️ [조회 전용]</span>
+              <span>실시간 스코어 및 경기 결과 입력 권한은 <strong>학생자치회</strong> 학생에게만 부여되어 있습니다.</span>
+            </div>
+            {onOpenLogin && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenLogin();
+                }}
+                className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold transition whitespace-nowrap ml-2"
+              >
+                학생자치회 로그인
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="px-6 py-2 bg-[#E2FF00]/10 border-b border-[#E2FF00]/20 flex items-center justify-between text-xs text-[#E2FF00] font-mono">
+            <span className="flex items-center gap-1.5 font-bold">
+              <ShieldCheck className="w-4 h-4 text-[#E2FF00]" />
+              학생자치회 기록원 입력 권한 활성화됨 ({currentUser?.name})
+            </span>
+            <span className="text-[11px] text-white/50">실시간 스코어 및 MVP 저장 가능</span>
+          </div>
+        )}
+
         {/* 15 Points Target Badge */}
         <div className="px-6 py-2 bg-[#0A0F1D]/80 border-b border-white/10 flex items-center justify-between font-mono text-xs">
           <div className="flex items-center gap-2">
@@ -242,12 +279,14 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
             </span>
           </div>
 
-          <button
-            onClick={() => { setScoreA(0); setScoreB(0); }}
-            className="flex items-center gap-1 text-[11px] text-white/40 hover:text-white transition"
-          >
-            <RotateCcw className="w-3 h-3" /> 점수 초기화
-          </button>
+          {canEditScore && (
+            <button
+              onClick={() => { setScoreA(0); setScoreB(0); }}
+              className="flex items-center gap-1 text-[11px] text-white/40 hover:text-white transition"
+            >
+              <RotateCcw className="w-3 h-3" /> 점수 초기화
+            </button>
+          )}
         </div>
 
         {/* Main Scoreboard Display */}
@@ -285,42 +324,50 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
               </div>
 
               {/* Buttons */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={addPointA}
-                  className="py-3 rounded-xl text-base font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.25)] transition active:scale-95 font-mono"
-                >
-                  +1 POINT
-                </button>
-                <button
-                  onClick={subtractPointA}
-                  className="py-3 rounded-xl text-sm font-bold text-white/70 bg-white/5 hover:bg-white/10 border border-white/10 transition active:scale-95 font-mono"
-                >
-                  -1 UNDO
-                </button>
-              </div>
+              {canEditScore ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={addPointA}
+                    className="py-3 rounded-xl text-base font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.25)] transition active:scale-95 font-mono"
+                  >
+                    +1 POINT
+                  </button>
+                  <button
+                    onClick={subtractPointA}
+                    className="py-3 rounded-xl text-sm font-bold text-white/70 bg-white/5 hover:bg-white/10 border border-white/10 transition active:scale-95 font-mono"
+                  >
+                    -1 UNDO
+                  </button>
+                </div>
+              ) : (
+                <div className="py-2.5 rounded-xl bg-white/5 text-center text-xs text-white/40 font-mono">
+                  점수 입력 권한: 학생자치회 전용
+                </div>
+              )}
 
               {/* In-game stat counters */}
-              <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs font-mono">
-                <button
-                  onClick={() => setSmashesA(s => s + 1)}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                >
-                  스매시 (+{smashesA})
-                </button>
-                <button
-                  onClick={() => setDropsA(d => d + 1)}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                >
-                  드롭 (+{dropsA})
-                </button>
-                <button
-                  onClick={() => setAcesA(a => a + 1)}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                >
-                  서브에이스 (+{acesA})
-                </button>
-              </div>
+              {canEditScore && (
+                <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs font-mono">
+                  <button
+                    onClick={() => setSmashesA(s => s + 1)}
+                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
+                  >
+                    스매시 (+{smashesA})
+                  </button>
+                  <button
+                    onClick={() => setDropsA(d => d + 1)}
+                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
+                  >
+                    드롭 (+{dropsA})
+                  </button>
+                  <button
+                    onClick={() => setAcesA(a => a + 1)}
+                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
+                  >
+                    서브에이스 (+{acesA})
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Team B Score Card */}
@@ -352,83 +399,109 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
               </div>
 
               {/* Buttons */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={addPointB}
-                  className="py-3 rounded-xl text-base font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.25)] transition active:scale-95 font-mono"
-                >
-                  +1 POINT
-                </button>
-                <button
-                  onClick={subtractPointB}
-                  className="py-3 rounded-xl text-sm font-bold text-white/70 bg-white/5 hover:bg-white/10 border border-white/10 transition active:scale-95 font-mono"
-                >
-                  -1 UNDO
-                </button>
-              </div>
+              {canEditScore ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={addPointB}
+                    className="py-3 rounded-xl text-base font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.25)] transition active:scale-95 font-mono"
+                  >
+                    +1 POINT
+                  </button>
+                  <button
+                    onClick={subtractPointB}
+                    className="py-3 rounded-xl text-sm font-bold text-white/70 bg-white/5 hover:bg-white/10 border border-white/10 transition active:scale-95 font-mono"
+                  >
+                    -1 UNDO
+                  </button>
+                </div>
+              ) : (
+                <div className="py-2.5 rounded-xl bg-white/5 text-center text-xs text-white/40 font-mono">
+                  점수 입력 권한: 학생자치회 전용
+                </div>
+              )}
 
               {/* In-game stat counters */}
-              <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs font-mono">
-                <button
-                  onClick={() => setSmashesB(s => s + 1)}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                >
-                  스매시 (+{smashesB})
-                </button>
-                <button
-                  onClick={() => setDropsB(d => d + 1)}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                >
-                  드롭 (+{dropsB})
-                </button>
-                <button
-                  onClick={() => setAcesB(a => a + 1)}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                >
-                  서브에이스 (+{acesB})
-                </button>
-              </div>
+              {canEditScore && (
+                <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs font-mono">
+                  <button
+                    onClick={() => setSmashesB(s => s + 1)}
+                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
+                  >
+                    스매시 (+{smashesB})
+                  </button>
+                  <button
+                    onClick={() => setDropsB(d => d + 1)}
+                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
+                  >
+                    드롭 (+{dropsB})
+                  </button>
+                  <button
+                    onClick={() => setAcesB(a => a + 1)}
+                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
+                  >
+                    서브에이스 (+{acesB})
+                  </button>
+                </div>
+              )}
             </div>
 
           </div>
 
-          {/* MVP selection row */}
-          <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Award className="w-4 h-4 text-[#E2FF00]" />
-              <label className="text-xs font-semibold text-white/70">경기 MVP 선수 선정:</label>
+          {/* MVP manual input section */}
+          <div className="p-4 sm:p-5 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-[#E2FF00]" />
+                <label className="text-xs font-bold text-white">경기 MVP 선수 (수동 직접 입력):</label>
+              </div>
+              <span className="text-[11px] text-[#E2FF00] font-mono font-bold">수동 입력 지원</span>
             </div>
-            <select
+
+            <input
+              type="text"
+              disabled={!canEditScore}
               value={mvpName}
               onChange={(e) => setMvpName(e.target.value)}
-              className="px-3.5 py-1.5 rounded-xl bg-[#12192B] border border-white/10 text-[#E2FF00] font-bold text-xs focus:outline-none focus:border-[#E2FF00]"
-            >
-              <option value="">자동 선정 또는 직접 선택</option>
-              {[...subMatch.teamAPlayers, ...subMatch.teamBPlayers].map(p => (
-                <option key={p.name} value={p.name}>
-                  {p.grade}학년 {p.classNum}반 {p.name}
-                </option>
+              placeholder="MVP 선수 이름 직접 입력 (예: 1학년 1반 김민준 또는 홍길동)"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-[#E2FF00] font-bold text-xs sm:text-sm focus:outline-none focus:border-[#E2FF00] placeholder-white/20 disabled:opacity-60"
+            />
+
+            {/* Quick-pick player chips */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] text-white/40 font-medium mr-1">출전선수 빠른선택:</span>
+              {[...subMatch.teamAPlayers, ...subMatch.teamBPlayers].map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  disabled={!canEditScore}
+                  onClick={() => setMvpName(`${p.grade}학년 ${p.classNum}반 ${p.name}`)}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-[#E2FF00]/10 hover:text-[#E2FF00] border border-white/10 text-white/70 text-[11px] transition disabled:opacity-40"
+                >
+                  {p.grade}-{p.classNum} {p.name}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
           {/* Bottom Actions */}
-          <div className="flex items-center justify-between gap-3 pt-2">
-            <button
-              onClick={() => handleSaveAndFinalize(false)}
-              className="w-1/2 py-3 rounded-xl text-xs sm:text-sm font-bold text-white/70 bg-white/5 hover:bg-white/10 border border-white/10 transition font-mono"
-            >
-              점수 임시 저장
-            </button>
+          {canEditScore && (
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <button
+                onClick={() => handleSaveAndFinalize(false)}
+                className="w-1/2 py-3 rounded-xl text-xs sm:text-sm font-bold text-white/70 bg-white/5 hover:bg-white/10 border border-white/10 transition font-mono"
+              >
+                점수 임시 저장
+              </button>
 
-            <button
-              onClick={() => handleSaveAndFinalize(true)}
-              className="w-1/2 py-3 rounded-xl text-xs sm:text-sm font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)] transition flex items-center justify-center gap-2"
-            >
-              <CheckCircle className="w-5 h-5 text-black" />
-              <span>경기 종료 및 공식 결과 인증</span>
-            </button>
-          </div>
+              <button
+                onClick={() => handleSaveAndFinalize(true)}
+                className="w-1/2 py-3 rounded-xl text-xs sm:text-sm font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)] transition flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-5 h-5 text-black" />
+                <span>경기 종료 및 공식 결과 인증</span>
+              </button>
+            </div>
+          )}
 
         </div>
 

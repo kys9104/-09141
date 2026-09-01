@@ -285,23 +285,35 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
           </div>
 
           {/* MVP & Referee */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-white/70 mb-1">
-                경기 MVP 선수
-              </label>
-              <select
+          <div className="space-y-3">
+            <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-[#E2FF00]" />
+                  <span>경기 MVP 선수 (직접 수동 입력)</span>
+                </label>
+                <span className="text-[10px] text-[#E2FF00] font-mono">수동 입력 지원</span>
+              </div>
+              <input
+                type="text"
                 value={mvpPlayer}
                 onChange={(e) => setMvpPlayer(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-[#E2FF00] font-bold text-xs focus:outline-none focus:border-[#E2FF00]"
-              >
-                <option value="">MVP 선택</option>
-                {[...subMatch.teamAPlayers, ...subMatch.teamBPlayers].map(p => (
-                  <option key={p.name} value={p.name}>
-                    {p.grade}학년 {p.classNum}반 {p.name}
-                  </option>
+                placeholder="예: 1학년 1반 김민준 또는 홍길동"
+                className="w-full px-3 py-2 rounded-xl bg-[#12192B] border border-white/10 text-[#E2FF00] font-bold text-xs sm:text-sm focus:outline-none focus:border-[#E2FF00] placeholder-white/20"
+              />
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-white/40">출전선수 선택:</span>
+                {[...subMatch.teamAPlayers, ...subMatch.teamBPlayers].map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setMvpPlayer(`${p.grade}학년 ${p.classNum}반 ${p.name}`)}
+                    className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-[#E2FF00]/10 hover:text-[#E2FF00] border border-white/10 text-white/70 text-[11px] transition"
+                  >
+                    {p.grade}-{p.classNum} {p.name}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
 
             <div>

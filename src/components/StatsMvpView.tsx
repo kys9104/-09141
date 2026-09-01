@@ -35,7 +35,11 @@ export const StatsMvpView: React.FC = () => {
       if (sm.status === 'COMPLETED') {
         const isAWin = sm.winnerTeam === 'A';
         const isBWin = sm.winnerTeam === 'B';
-        const isMvp = sm.stats?.mvpPlayerName;
+        const isMvp = sm.stats?.mvpPlayerName?.trim();
+        const checkMvp = (playerName: string) => {
+          if (!isMvp || !playerName) return false;
+          return isMvp === playerName || isMvp.includes(playerName) || playerName.includes(isMvp);
+        };
 
         sm.teamAPlayers.forEach(p => {
           if (!playerStatsMap[p.name]) {
@@ -52,7 +56,7 @@ export const StatsMvpView: React.FC = () => {
           playerStatsMap[p.name].matches += 1;
           if (isAWin) playerStatsMap[p.name].wins += 1;
           if (sm.stats?.smashWinnersA) playerStatsMap[p.name].smashes += Math.round(sm.stats.smashWinnersA / sm.teamAPlayers.length);
-          if (isMvp === p.name) playerStatsMap[p.name].mvpCount += 1;
+          if (checkMvp(p.name)) playerStatsMap[p.name].mvpCount += 1;
         });
 
         sm.teamBPlayers.forEach(p => {
@@ -70,7 +74,7 @@ export const StatsMvpView: React.FC = () => {
           playerStatsMap[p.name].matches += 1;
           if (isBWin) playerStatsMap[p.name].wins += 1;
           if (sm.stats?.smashWinnersB) playerStatsMap[p.name].smashes += Math.round(sm.stats.smashWinnersB / sm.teamBPlayers.length);
-          if (isMvp === p.name) playerStatsMap[p.name].mvpCount += 1;
+          if (checkMvp(p.name)) playerStatsMap[p.name].mvpCount += 1;
         });
       }
     });
