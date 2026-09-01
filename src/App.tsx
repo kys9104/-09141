@@ -147,6 +147,7 @@ export default function App() {
             onOpenResultEntryModal={handleOpenResultEntry}
             onOpenLiveScoreModal={handleOpenLiveScore}
             onOpenDiaryModal={handleOpenDiaryModal}
+            onResultDeleted={triggerRefresh}
           />
         )}
 

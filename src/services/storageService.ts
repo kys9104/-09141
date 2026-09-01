@@ -341,6 +341,100 @@ export class StorageService {
     };
   }
 
+  // Delete / Reset Individual SubMatch Result
+  static deleteSubMatchResult(tieMatchId: string, subMatchId: string): void {
+    const matches = this.getMatches();
+    const tieIdx = matches.findIndex(m => m.id === tieMatchId);
+    if (tieIdx === -1) return;
+
+    const t = matches[tieIdx];
+    const smIdx = t.subMatches.findIndex(s => s.id === subMatchId);
+    if (smIdx === -1) return;
+
+    const sm = t.subMatches[smIdx];
+
+    t.subMatches[smIdx] = {
+      ...sm,
+      sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
+      winnerTeam: undefined,
+      status: 'UPCOMING',
+      referee: undefined,
+      recordedBy: undefined,
+      currentScoreA: 0,
+      currentScoreB: 0,
+      servingTeam: undefined,
+      stats: undefined
+    };
+
+    // Recalculate tie wins & status
+    let tAWins = 0;
+    let tBWins = 0;
+    let completedCount = 0;
+    t.subMatches.forEach(sub => {
+      if (sub.status === 'COMPLETED') {
+        completedCount++;
+        if (sub.winnerTeam === 'A') tAWins++;
+        else if (sub.winnerTeam === 'B') tBWins++;
+      }
+    });
+
+    t.teamAWins = tAWins;
+    t.teamBWins = tBWins;
+
+    if (completedCount === 0) {
+      t.status = 'READY_TO_PLAY';
+      t.winnerClass = undefined;
+    } else if (tAWins >= 3) {
+      t.winnerClass = t.teamAClass;
+      t.status = 'COMPLETED';
+    } else if (tBWins >= 3) {
+      t.winnerClass = t.teamBClass;
+      t.status = 'COMPLETED';
+    } else {
+      const allDone = t.subMatches.every(sub => sub.status === 'COMPLETED');
+      if (allDone) {
+        t.status = 'COMPLETED';
+      } else {
+        t.status = 'IN_PROGRESS';
+        t.winnerClass = undefined;
+      }
+    }
+
+    matches[tieIdx] = t;
+    this.saveMatches(matches);
+  }
+
+  // Delete / Reset Entire Tie Match Results
+  static deleteTieMatchResult(tieMatchId: string): void {
+    const matches = this.getMatches();
+    const tieIdx = matches.findIndex(m => m.id === tieMatchId);
+    if (tieIdx === -1) return;
+
+    const t = matches[tieIdx];
+    t.subMatches = t.subMatches.map(sm => {
+      return {
+        ...sm,
+        sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
+        winnerTeam: undefined,
+        status: 'UPCOMING',
+        referee: undefined,
+        recordedBy: undefined,
+        currentScoreA: 0,
+        currentScoreB: 0,
+        servingTeam: undefined,
+        stats: undefined
+      };
+    });
+
+    t.teamAWins = 0;
+    t.teamBWins = 0;
+    t.winnerClass = undefined;
+    t.status = 'READY_TO_PLAY';
+
+    matches[tieIdx] = t;
+    this.saveMatches(matches);
+  }
+
   // Reset to Factory Default
   static resetToDefault(): void {
     localStorage.removeItem(STORAGE_KEYS.TIE_MATCHES);

@@ -10,7 +10,11 @@ import {
   FileEdit,
   Zap,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Trash2,
+  AlertTriangle,
+  RotateCcw,
+  X
 } from 'lucide-react';
 import { 
   GradeLevel, 
@@ -28,6 +32,7 @@ interface ScheduleRoundViewProps {
   onOpenResultEntryModal: (tieMatchId: string, subMatchId: string) => void;
   onOpenLiveScoreModal: (tieMatchId: string, subMatchId: string) => void;
   onOpenDiaryModal: (roundId: number, category: MatchCategory, opponentClass: number) => void;
+  onResultDeleted?: () => void;
 }
 
 export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
@@ -35,10 +40,17 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
   onOpenLineupModal,
   onOpenResultEntryModal,
   onOpenLiveScoreModal,
-  onOpenDiaryModal
+  onOpenDiaryModal,
+  onResultDeleted
 }) => {
   const [selectedRoundId, setSelectedRoundId] = useState<number>(1);
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    type: 'SUBMATCH' | 'TIE';
+    tieId: string;
+    subMatchId?: string;
+    title: string;
+  } | null>(null);
 
   const matches = StorageService.getMatches();
   const currentRound = LEAGUE_ROUNDS.find(r => r.id === selectedRoundId) || LEAGUE_ROUNDS[0];
@@ -46,6 +58,25 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
   const currentTieMatches = matches.filter(
     m => m.roundId === selectedRoundId
   );
+
+  const isTeacher = currentUser?.role === 'TEACHER';
+  const isStudentCouncil = currentUser?.role === 'STUDENT_COUNCIL';
+  const isSportsRep = currentUser?.role === 'SPORTS_REP' || currentUser?.isSportsRep;
+
+  const handleDeleteExecute = () => {
+    if (!isTeacher || !deleteConfirmModal) return;
+
+    if (deleteConfirmModal.type === 'SUBMATCH' && deleteConfirmModal.subMatchId) {
+      StorageService.deleteSubMatchResult(deleteConfirmModal.tieId, deleteConfirmModal.subMatchId);
+    } else if (deleteConfirmModal.type === 'TIE') {
+      StorageService.deleteTieMatchResult(deleteConfirmModal.tieId);
+    }
+
+    setDeleteConfirmModal(null);
+    if (onResultDeleted) {
+      onResultDeleted();
+    }
+  };
 
   const getCategoryBadge = (cat: MatchCategory) => {
     switch (cat) {
@@ -61,10 +92,6 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
         return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30 font-mono">혼복</span>;
     }
   };
-
-  const isTeacher = currentUser?.role === 'TEACHER';
-  const isStudentCouncil = currentUser?.role === 'STUDENT_COUNCIL';
-  const isSportsRep = currentUser?.role === 'SPORTS_REP' || currentUser?.isSportsRep;
 
   return (
     <div className="space-y-6">
@@ -228,7 +255,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                   </div>
 
                   {/* Tie Overall Score Status */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     {tie.status === 'COMPLETED' ? (
                       <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 px-3 py-1 rounded-lg">
                         <span className="text-xs font-medium text-blue-400">종합 스코어</span>
@@ -251,6 +278,22 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                         className="px-3 py-1 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition"
                       >
                         출전명단 작성
+                      </button>
+                    )}
+
+                    {/* Teacher-only: Reset entire tie match results */}
+                    {isTeacher && (tie.status === 'COMPLETED' || tie.subMatches.some(s => s.status === 'COMPLETED')) && (
+                      <button
+                        onClick={() => setDeleteConfirmModal({
+                          type: 'TIE',
+                          tieId: tie.id,
+                          title: `MATCH ${idx + 1} (${teamAGrade}학년 ${tie.teamAClass}반 VS ${teamBGrade}학년 ${tie.teamBClass}반 전체 5경기)`
+                        })}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition flex items-center gap-1 font-mono"
+                        title="체육교사 권한: 해당 매치 5개 종목 결과 전체 초기화"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>대진 결과 전체 삭제</span>
                       </button>
                     )}
                   </div>
@@ -378,6 +421,23 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                               <span>결과 입력</span>
                             </button>
                           )}
+
+                          {/* Teacher-only: Delete/Reset Submatch Result */}
+                          {isTeacher && (sm.status === 'COMPLETED' || hasScores) && (
+                            <button
+                              onClick={() => setDeleteConfirmModal({
+                                type: 'SUBMATCH',
+                                tieId: tie.id,
+                                subMatchId: sm.id,
+                                title: `${CATEGORIES.find(c => c.id === sm.category)?.name || sm.category} (${teamAGrade}학년 ${tie.teamAClass}반 VS ${teamBGrade}학년 ${tie.teamBClass}반)`
+                              })}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition flex items-center justify-center gap-1 font-mono"
+                              title="체육교사 권한: 경기 결과 삭제 및 점수 초기화"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">결과 삭제</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -388,6 +448,58 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
           })
         )}
       </div>
+
+      {/* Delete Confirmation Modal (Physical Education Teacher Permission Only) */}
+      {deleteConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-[#12192B] border border-rose-500/30 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">경기 결과 삭제 및 초기화</h3>
+                  <p className="text-xs text-rose-400 font-semibold font-mono">체육교사 전용 권한 승인</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeleteConfirmModal(null)}
+                className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-2 text-xs">
+              <div className="font-bold text-white text-sm">
+                {deleteConfirmModal.title}
+              </div>
+              <p className="text-white/60 leading-relaxed">
+                해당 경기의 입력된 <strong>최종 점수, 승패 기록, MVP 선수</strong> 데이터가 즉시 삭제되고 경기 전 상태로 초기화됩니다. 리그 순위표와 지표 통계도 자동 재계산됩니다.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setDeleteConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white/70 bg-white/5 hover:bg-white/10 border border-white/10 transition"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDeleteExecute}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-[0_0_12px_rgba(225,29,72,0.4)] transition flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>확인 및 결과 삭제</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

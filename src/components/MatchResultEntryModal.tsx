@@ -8,7 +8,8 @@ import {
   Users,
   Activity,
   AlertCircle,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile } from '../types';
@@ -86,6 +87,17 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
     setScoreB(val);
     if (val > scoreA) setWinnerTeam('B');
     else if (scoreA > val) setWinnerTeam('A');
+  };
+
+  const isTeacher = currentUser?.role === 'TEACHER';
+
+  const handleDeleteResult = () => {
+    if (!isTeacher || !tieMatchId || !subMatchId) return;
+    if (window.confirm('해당 경기의 결과 및 점수를 삭제하고 경기 전 상태로 초기화하시겠습니까?\n(체육교사 전용 권한)')) {
+      StorageService.deleteSubMatchResult(tieMatchId, subMatchId);
+      onSaved();
+      onClose();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -324,6 +336,23 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Teacher Delete Option & Action Buttons */}
+          {isTeacher && subMatch.status === 'COMPLETED' && (
+            <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+              <div className="text-[11px] text-rose-400/80 font-mono">
+                * 체육교사 권한: 입력된 경기 결과를 삭제하고 초기화할 수 있습니다.
+              </div>
+              <button
+                type="button"
+                onClick={handleDeleteResult}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition flex items-center gap-1 font-mono"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>결과 삭제 및 초기화</span>
+              </button>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="pt-2 flex items-center gap-3">
