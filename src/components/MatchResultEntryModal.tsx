@@ -41,8 +41,6 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
 
   const [winnerTeam, setWinnerTeam] = useState<'A' | 'B'>('A');
   const [mvpPlayer, setMvpPlayer] = useState<string>('');
-  const [smashA, setSmashA] = useState<number>(5);
-  const [smashB, setSmashB] = useState<number>(3);
   const [referee, setReferee] = useState<string>(currentUser?.name || '학생자치회');
 
   useEffect(() => {
@@ -68,8 +66,6 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
 
     if (sm.winnerTeam) setWinnerTeam(sm.winnerTeam === 'DRAW' ? 'A' : sm.winnerTeam);
     if (sm.stats) {
-      setSmashA(sm.stats.smashWinnersA || 0);
-      setSmashB(sm.stats.smashWinnersB || 0);
       setMvpPlayer(sm.stats.mvpPlayerName || '');
     }
     if (sm.referee) setReferee(sm.referee);
@@ -116,8 +112,8 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
       referee,
       recordedBy: currentUser?.name || '학생자치회',
       stats: {
-        smashWinnersA: Number(smashA),
-        smashWinnersB: Number(smashB),
+        smashWinnersA: 0,
+        smashWinnersB: 0,
         mvpPlayerName: mvpPlayer || (winnerTeam === 'A' ? subMatch.teamAPlayers[0]?.name : subMatch.teamBPlayers[0]?.name) || '',
         durationMinutes: 15
       }
@@ -325,27 +321,6 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
                 value={referee}
                 onChange={(e) => setReferee(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
-              />
-            </div>
-          </div>
-
-          {/* Smashes Stat */}
-          <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 flex items-center justify-between gap-3 text-xs font-mono">
-            <span className="font-bold text-white/60">SMASH WINNERS:</span>
-            <div className="flex items-center gap-2">
-              <span className="text-white/60">A팀:</span>
-              <input
-                type="number"
-                value={smashA}
-                onChange={(e) => setSmashA(Number(e.target.value))}
-                className="w-14 px-2 py-1 rounded-lg bg-[#12192B] border border-white/10 text-center text-white font-bold"
-              />
-              <span className="text-white/60 ml-2">B팀:</span>
-              <input
-                type="number"
-                value={smashB}
-                onChange={(e) => setSmashB(Number(e.target.value))}
-                className="w-14 px-2 py-1 rounded-lg bg-[#12192B] border border-white/10 text-center text-white font-bold"
               />
             </div>
           </div>

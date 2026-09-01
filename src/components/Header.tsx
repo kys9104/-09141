@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   const navItems = [
     { id: 'STANDINGS', label: '리그 순위표', icon: Trophy },
     { id: 'SCHEDULE', label: '경기 일정 / 결과', icon: Calendar },
-    { id: 'STATS', label: '선수 스텟 & MVP', icon: BarChart3 },
+    { id: 'STATS', label: '학급별 종합 경기 지표 요약', icon: BarChart3 },
     { id: 'DIARY', label: '개인 소감 / 기록', icon: BookOpen },
     { id: 'TEACHER', label: '교사·운영 대시보드', icon: ShieldCheck, highlight: true }
   ];

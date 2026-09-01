@@ -42,14 +42,6 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
   const [scoreA, setScoreA] = useState<number>(0);
   const [scoreB, setScoreB] = useState<number>(0);
   const [servingTeam, setServingTeam] = useState<'A' | 'B'>('A');
-
-  // Live match rally stats
-  const [smashesA, setSmashesA] = useState<number>(0);
-  const [smashesB, setSmashesB] = useState<number>(0);
-  const [dropsA, setDropsA] = useState<number>(0);
-  const [dropsB, setDropsB] = useState<number>(0);
-  const [acesA, setAcesA] = useState<number>(0);
-  const [acesB, setAcesB] = useState<number>(0);
   const [mvpName, setMvpName] = useState<string>('');
 
   useEffect(() => {
@@ -74,12 +66,6 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
     if (sm.servingTeam) setServingTeam(sm.servingTeam);
 
     if (sm.stats) {
-      setSmashesA(sm.stats.smashWinnersA || 0);
-      setSmashesB(sm.stats.smashWinnersB || 0);
-      setDropsA(sm.stats.dropPointsA || 0);
-      setDropsB(sm.stats.dropPointsB || 0);
-      setAcesA(sm.stats.serviceAcesA || 0);
-      setAcesB(sm.stats.serviceAcesB || 0);
       setMvpName(sm.stats.mvpPlayerName || '');
     }
   }, [isOpen, tieMatchId, subMatchId]);
@@ -153,12 +139,12 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
       currentScoreB: scoreB,
       servingTeam,
       stats: {
-        smashWinnersA: smashesA,
-        smashWinnersB: smashesB,
-        dropPointsA: dropsA,
-        dropPointsB: dropsB,
-        serviceAcesA: acesA,
-        serviceAcesB: acesB,
+        smashWinnersA: 0,
+        smashWinnersB: 0,
+        dropPointsA: 0,
+        dropPointsB: 0,
+        serviceAcesA: 0,
+        serviceAcesB: 0,
         mvpPlayerName: mvpName || (winner === 'A' ? subMatch.teamAPlayers[0]?.name : subMatch.teamBPlayers[0]?.name) || '',
         durationMinutes: 15
       }
@@ -344,30 +330,6 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
                   점수 입력 권한: 학생자치회 전용
                 </div>
               )}
-
-              {/* In-game stat counters */}
-              {canEditScore && (
-                <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs font-mono">
-                  <button
-                    onClick={() => setSmashesA(s => s + 1)}
-                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                  >
-                    스매시 (+{smashesA})
-                  </button>
-                  <button
-                    onClick={() => setDropsA(d => d + 1)}
-                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                  >
-                    드롭 (+{dropsA})
-                  </button>
-                  <button
-                    onClick={() => setAcesA(a => a + 1)}
-                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                  >
-                    서브에이스 (+{acesA})
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Team B Score Card */}
@@ -417,30 +379,6 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
               ) : (
                 <div className="py-2.5 rounded-xl bg-white/5 text-center text-xs text-white/40 font-mono">
                   점수 입력 권한: 학생자치회 전용
-                </div>
-              )}
-
-              {/* In-game stat counters */}
-              {canEditScore && (
-                <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs font-mono">
-                  <button
-                    onClick={() => setSmashesB(s => s + 1)}
-                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                  >
-                    스매시 (+{smashesB})
-                  </button>
-                  <button
-                    onClick={() => setDropsB(d => d + 1)}
-                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                  >
-                    드롭 (+{dropsB})
-                  </button>
-                  <button
-                    onClick={() => setAcesB(a => a + 1)}
-                    className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
-                  >
-                    서브에이스 (+{acesB})
-                  </button>
                 </div>
               )}
             </div>
