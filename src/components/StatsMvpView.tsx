@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   Trophy, 
   Activity,
-  TrendingUp,
   Target,
   BarChart3
 } from 'lucide-react';
@@ -16,7 +15,6 @@ export const StatsMvpView: React.FC = () => {
     return acc + tie.subMatches.filter(sm => sm.status === 'COMPLETED').length;
   }, 0);
 
-  const totalPointsScored = standings.reduce((acc, s) => acc + s.scoreWon, 0);
   const leadingClass = standings[0] || null;
 
   return (
@@ -33,13 +31,13 @@ export const StatsMvpView: React.FC = () => {
             학급별 <span className="text-[#E2FF00]">종합 경기 지표 요약</span> (통합 전체)
           </h2>
           <p className="text-xs text-white/50 mt-1">
-            신안중학교 학교스포츠클럽 배드민턴 리그 전체 학급의 순위, 승점, 전적, 세트 득실 및 총 득실점 종합 분석 데이터입니다.
+            신안해양과학고등학교 학교스포츠클럽 배드민턴 리그 전체 학급의 순위, 승점, 전적, 세트 득실 및 총 득실점 종합 분석 데이터입니다.
           </p>
         </div>
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Leading Class */}
         <div className="p-5 rounded-2xl bg-[#12192B] border border-white/10 shadow-lg space-y-2">
           <div className="flex items-center justify-between">
@@ -72,22 +70,6 @@ export const StatsMvpView: React.FC = () => {
             </div>
             <div className="text-xs font-mono text-blue-400 font-bold mt-0.5">
               공식 집계 완료
-            </div>
-          </div>
-        </div>
-
-        {/* Total Points Scored */}
-        <div className="p-5 rounded-2xl bg-[#12192B] border border-white/10 shadow-lg space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-white/50">총 누적 득점</span>
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-black text-white tracking-tight font-mono">
-              {totalPointsScored} <span className="text-sm font-medium text-white/50">PTS</span>
-            </div>
-            <div className="text-xs font-mono text-emerald-400 font-bold mt-0.5">
-              리그 전체 득점 총합
             </div>
           </div>
         </div>
