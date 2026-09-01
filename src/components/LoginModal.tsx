@@ -40,7 +40,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     if (role === 'TEACHER') {
       if (teacherPassword !== '4161') {
-        setErrorMessage('체육교사 접근 비밀번호가 일치하지 않습니다. (비밀번호: 4161)');
+        setErrorMessage('체육교사 접근 비밀번호가 일치하지 않습니다.');
         return;
       }
       const teacherProfile: UserProfile = {
@@ -184,7 +184,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/30 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
-                  <Lock className="w-3.5 h-3.5" /> TEACHER PASSCODE (4161)
+                  <Lock className="w-3.5 h-3.5" /> TEACHER PASSCODE
                 </label>
               </div>
               <input
@@ -192,7 +192,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 id="teacher-password-input"
                 value={teacherPassword}
                 onChange={(e) => setTeacherPassword(e.target.value)}
-                placeholder="4161 입력"
+                placeholder="비밀번호 입력"
                 className="w-full px-3.5 py-2 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono"
               />
             </div>
@@ -216,7 +216,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </select>
             </div>
 
-            {/* Class dropdown (1, 2, 3) */}
+            {/* Class dropdown (1, 2) */}
             <div>
               <label className="block text-xs font-semibold text-white/70 mb-1.5">
                 반
@@ -229,7 +229,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               >
                 <option value={1}>1반</option>
                 <option value={2}>2반</option>
-                <option value={3}>3반</option>
               </select>
             </div>
 

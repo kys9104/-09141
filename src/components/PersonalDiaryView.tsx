@@ -252,7 +252,6 @@ export const PersonalDiaryView: React.FC<PersonalDiaryViewProps> = ({
               >
                 <option value={1}>1반</option>
                 <option value={2}>2반</option>
-                <option value={3}>3반</option>
               </select>
             </div>
           </div>

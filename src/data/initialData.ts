@@ -138,75 +138,77 @@ const createClassRoster = (grade: 1 | 2, classNum: number): Player[] => {
 export const SAMPLE_STUDENTS: Record<string, Player[]> = {
   '1-1': createClassRoster(1, 1),
   '1-2': createClassRoster(1, 2),
-  '1-3': createClassRoster(1, 3),
   '2-1': createClassRoster(2, 1),
   '2-2': createClassRoster(2, 2),
-  '2-3': createClassRoster(2, 3),
 };
 
 // Default Sports Representatives
 export const DEFAULT_SPORTS_REPRESENTATIVES: Record<string, string> = {
   '1-1': '1번 학생',
   '1-2': '1번 학생',
-  '1-3': '1번 학생',
   '2-1': '1번 학생',
-  '2-2': '1번 학생',
-  '2-3': '1번 학생'
+  '2-2': '1번 학생'
 };
 
 // Helper to create 5 submatches per tie match (Single-set 15-point games)
-const createSubMatches = (tieIdPrefix: string): SubMatch[] => [
-  {
-    id: `${tieIdPrefix}-MS`,
-    category: 'MEN_SINGLES',
-    court: '제1코트',
-    scheduledTime: '13:30',
-    teamAPlayers: [],
-    teamBPlayers: [],
-    sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
-    status: 'UPCOMING'
-  },
-  {
-    id: `${tieIdPrefix}-WS`,
-    category: 'WOMEN_SINGLES',
-    court: '제2코트',
-    scheduledTime: '13:30',
-    teamAPlayers: [],
-    teamBPlayers: [],
-    sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
-    status: 'UPCOMING'
-  },
-  {
-    id: `${tieIdPrefix}-MD`,
-    category: 'MEN_DOUBLES',
-    court: '제1코트',
-    scheduledTime: '14:00',
-    teamAPlayers: [],
-    teamBPlayers: [],
-    sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
-    status: 'UPCOMING'
-  },
-  {
-    id: `${tieIdPrefix}-WD`,
-    category: 'WOMEN_DOUBLES',
-    court: '제2코트',
-    scheduledTime: '14:00',
-    teamAPlayers: [],
-    teamBPlayers: [],
-    sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
-    status: 'UPCOMING'
-  },
-  {
-    id: `${tieIdPrefix}-XD`,
-    category: 'MIXED_DOUBLES',
-    court: '제1코트',
-    scheduledTime: '14:30',
-    teamAPlayers: [],
-    teamBPlayers: [],
-    sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
-    status: 'UPCOMING'
-  }
-];
+// Match 1 -> Court 1, Court 2 | Match 2 -> Court 3, Court 4
+const createSubMatches = (tieIdPrefix: string, isMatch2: boolean = false): SubMatch[] => {
+  const courtMain = isMatch2 ? '제3코트' : '제1코트';
+  const courtSub = isMatch2 ? '제4코트' : '제2코트';
+
+  return [
+    {
+      id: `${tieIdPrefix}-MS`,
+      category: 'MEN_SINGLES',
+      court: courtMain,
+      scheduledTime: '',
+      teamAPlayers: [],
+      teamBPlayers: [],
+      sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
+      status: 'UPCOMING'
+    },
+    {
+      id: `${tieIdPrefix}-WS`,
+      category: 'WOMEN_SINGLES',
+      court: courtSub,
+      scheduledTime: '',
+      teamAPlayers: [],
+      teamBPlayers: [],
+      sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
+      status: 'UPCOMING'
+    },
+    {
+      id: `${tieIdPrefix}-MD`,
+      category: 'MEN_DOUBLES',
+      court: courtMain,
+      scheduledTime: '',
+      teamAPlayers: [],
+      teamBPlayers: [],
+      sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
+      status: 'UPCOMING'
+    },
+    {
+      id: `${tieIdPrefix}-WD`,
+      category: 'WOMEN_DOUBLES',
+      court: courtSub,
+      scheduledTime: '',
+      teamAPlayers: [],
+      teamBPlayers: [],
+      sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
+      status: 'UPCOMING'
+    },
+    {
+      id: `${tieIdPrefix}-XD`,
+      category: 'MIXED_DOUBLES',
+      court: courtMain,
+      scheduledTime: '',
+      teamAPlayers: [],
+      teamBPlayers: [],
+      sets: [{ setNumber: 1, scoreA: 0, scoreB: 0 }],
+      status: 'UPCOMING'
+    }
+  ];
+};
 
 export const INITIAL_TIE_MATCHES: TieMatch[] = [
   // ==========================================
@@ -225,7 +227,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R1-M1')
+    subMatches: createSubMatches('SM-R1-M1', false)
   },
   {
     id: 'TIE-R1-M2',
@@ -240,7 +242,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R1-M2')
+    subMatches: createSubMatches('SM-R1-M2', true)
   },
 
   // ==========================================
@@ -259,7 +261,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R2-M1')
+    subMatches: createSubMatches('SM-R2-M1', false)
   },
   {
     id: 'TIE-R2-M2',
@@ -274,7 +276,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R2-M2')
+    subMatches: createSubMatches('SM-R2-M2', true)
   },
 
   // ==========================================
@@ -293,7 +295,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R3-M1')
+    subMatches: createSubMatches('SM-R3-M1', false)
   },
   {
     id: 'TIE-R3-M2',
@@ -308,7 +310,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R3-M2')
+    subMatches: createSubMatches('SM-R3-M2', true)
   },
 
   // ==========================================
@@ -327,7 +329,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R4-M1')
+    subMatches: createSubMatches('SM-R4-M1', false)
   },
   {
     id: 'TIE-R4-M2',
@@ -342,7 +344,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R4-M2')
+    subMatches: createSubMatches('SM-R4-M2', true)
   },
 
   // ==========================================
@@ -361,7 +363,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R5-M1')
+    subMatches: createSubMatches('SM-R5-M1', false)
   },
   {
     id: 'TIE-R5-M2',
@@ -376,7 +378,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R5-M2')
+    subMatches: createSubMatches('SM-R5-M2', true)
   },
 
   // ==========================================
@@ -395,7 +397,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R6-M1')
+    subMatches: createSubMatches('SM-R6-M1', false)
   },
   {
     id: 'TIE-R6-M2',
@@ -410,7 +412,7 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     teamAWins: 0,
     teamBWins: 0,
     status: 'PENDING_LINEUP',
-    subMatches: createSubMatches('SM-R6-M2')
+    subMatches: createSubMatches('SM-R6-M2', true)
   }
 ];
 

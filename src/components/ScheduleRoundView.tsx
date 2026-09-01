@@ -80,13 +80,13 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
             라운드별 <span className="text-[#E2FF00]">통합 경기 대진 & 일정표</span>
           </h2>
           <p className="text-xs text-white/50 mt-1">
-            각 종목별 <strong className="text-[#E2FF00]">단판 15점 경기</strong>로 진행되며, 경기 1일 전 23:59까지 학급 체육부장이 공식 명단을 제출합니다.
+            총 4개 코트(제1·2코트: Match 1, 제3·4코트: Match 2)에서 각 종목별 <strong className="text-[#E2FF00]">단판 15점 경기</strong>로 진행됩니다.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/70 text-xs font-mono">
-            단판 15점 선승제
+          <span className="px-3 py-1.5 rounded-lg bg-[#E2FF00]/10 border border-[#E2FF00]/30 text-[#E2FF00] text-xs font-mono font-bold">
+            4개 코트 동시 진행 • 단판 15점
           </span>
         </div>
       </div>
@@ -217,8 +217,8 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                 {/* Tie Match Header Banner */}
                 <div className="px-6 py-4 bg-[#161E31] border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="px-2.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/70 font-bold text-xs font-mono">
-                      MATCH {idx + 1}
+                    <div className="px-2.5 py-1 rounded-lg bg-[#E2FF00]/15 border border-[#E2FF00]/30 text-[#E2FF00] font-bold text-xs font-mono">
+                      MATCH {idx + 1} ({idx === 0 ? '제1·2코트' : '제3·4코트'})
                     </div>
                     <h3 className="text-base font-bold text-white">
                       <span className="text-[#E2FF00]">{teamAGrade}학년 {tie.teamAClass}반</span> ({teamAGrade}-{tie.teamAClass})
@@ -279,11 +279,8 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             {getCategoryBadge(sm.category)}
-                            <span className="text-[11px] text-white/40 flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-white/30" /> {sm.court}
-                            </span>
-                            <span className="text-[11px] text-white/40 flex items-center gap-1 font-mono">
-                              <Clock className="w-3 h-3 text-white/30" /> {sm.scheduledTime}
+                            <span className="text-[11px] font-bold text-[#E2FF00] bg-[#E2FF00]/10 px-2 py-0.5 rounded border border-[#E2FF00]/20 flex items-center gap-1 font-mono">
+                              <MapPin className="w-3 h-3 text-[#E2FF00]" /> {sm.court}
                             </span>
                           </div>
 

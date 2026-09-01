@@ -11,9 +11,12 @@ import { GradeLevel } from '../types';
 import { StorageService } from '../services/storageService';
 
 export const StatsMvpView: React.FC = () => {
-  const [selectedGrade, setSelectedGrade] = useState<GradeLevel>(1);
+  const [selectedGrade, setSelectedGrade] = useState<'ALL' | GradeLevel>('ALL');
 
-  const matches = StorageService.getMatches().filter(m => m.grade === selectedGrade);
+  const allMatches = StorageService.getMatches();
+  const matches = selectedGrade === 'ALL'
+    ? allMatches
+    : allMatches.filter(m => (m.teamAGrade === selectedGrade || m.teamBGrade === selectedGrade || m.grade === selectedGrade));
   const standings = StorageService.calculateStandings(selectedGrade);
 
   // Compute player individual stats from submatches
@@ -105,24 +108,34 @@ export const StatsMvpView: React.FC = () => {
         {/* Grade Selector */}
         <div className="flex items-center bg-[#0A0F1D] p-1 rounded-xl border border-white/10 self-start md:self-auto">
           <button
+            onClick={() => setSelectedGrade('ALL')}
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
+              selectedGrade === 'ALL'
+                ? 'bg-[#E2FF00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)]'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            통합 (전체)
+          </button>
+          <button
             onClick={() => setSelectedGrade(1)}
-            className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
               selectedGrade === 1
                 ? 'bg-[#E2FF00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)]'
                 : 'text-white/60 hover:text-white'
             }`}
           >
-            1학년 기록
+            1학년
           </button>
           <button
             onClick={() => setSelectedGrade(2)}
-            className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
               selectedGrade === 2
                 ? 'bg-[#E2FF00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)]'
                 : 'text-white/60 hover:text-white'
             }`}
           >
-            2학년 기록
+            2학년
           </button>
         </div>
       </div>

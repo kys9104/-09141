@@ -22,8 +22,7 @@ interface StandingsViewProps {
 export const StandingsView: React.FC<StandingsViewProps> = ({
   onOpenSchedule
 }) => {
-  const [gradeFilter, setGradeFilter] = useState<'ALL' | GradeLevel>('ALL');
-  const standings = StorageService.calculateStandings(gradeFilter);
+  const standings = StorageService.calculateStandings('ALL');
   const allMatches = StorageService.getMatches();
 
   const completedMatches = allMatches.filter(m => m.status === 'COMPLETED');
@@ -51,38 +50,8 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
             </p>
           </div>
 
-          {/* Grade Filter Toggle */}
-          <div className="flex items-center self-start md:self-auto bg-[#0A0F1D] p-1 rounded-xl border border-white/10">
-            <button
-              onClick={() => setGradeFilter('ALL')}
-              className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
-                gradeFilter === 'ALL'
-                  ? 'bg-[#E2FF00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)]'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              통합 순위 (전체)
-            </button>
-            <button
-              onClick={() => setGradeFilter(1)}
-              className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
-                gradeFilter === 1
-                  ? 'bg-[#E2FF00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)]'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              1학년
-            </button>
-            <button
-              onClick={() => setGradeFilter(2)}
-              className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
-                gradeFilter === 2
-                  ? 'bg-[#E2FF00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)]'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              2학년
-            </button>
+          <div className="flex items-center self-start md:self-auto px-3.5 py-2 rounded-xl bg-[#0A0F1D] border border-white/10 text-xs sm:text-sm font-bold text-[#E2FF00] font-mono">
+            <span>🏆 1·2학년 통합 단일 풀리그 (4개 학급)</span>
           </div>
         </div>
 
@@ -135,7 +104,7 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
           <div className="flex items-center gap-2">
             <Trophy className="w-4 h-4 text-[#E2FF00]" />
             <h3 className="text-sm sm:text-base font-bold text-white">
-              {gradeFilter === 'ALL' ? '1·2학년 통합 공식 순위표' : `${gradeFilter}학년 순위표`}
+              1·2학년 통합 공식 순위표
             </h3>
           </div>
           <div className="text-[11px] text-white/50 flex items-center gap-2 font-mono">

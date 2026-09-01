@@ -60,7 +60,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       setIsAuthenticated(true);
       setAuthError('');
     } else {
-      setAuthError('체육교사 접근 비밀번호가 틀렸습니다. (기본 비밀번호: 4161)');
+      setAuthError('체육교사 접근 비밀번호가 일치하지 않습니다.');
     }
   };
 
@@ -81,13 +81,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div className="text-left">
             <label className="block text-xs font-semibold text-white/70 mb-1.5 font-mono">
-              TEACHER ACCESS CODE (4-DIGIT)
+              TEACHER ACCESS CODE
             </label>
             <input
               type="password"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="4161 입력"
+              placeholder="비밀번호 입력"
               className="w-full px-4 py-3 rounded-xl bg-[#0A0F1D] border border-white/10 text-center text-white text-lg font-mono font-bold tracking-widest placeholder-white/20 focus:outline-none focus:border-[#E2FF00]"
             />
           </div>
@@ -249,7 +249,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 >
                   <option value={1}>1반 (21명)</option>
                   <option value={2}>2반 (21명)</option>
-                  <option value={3}>3반 (21명)</option>
                 </select>
 
                 {/* Emphasis tone */}
@@ -378,8 +377,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {['1-1', '1-2', '1-3', '2-1', '2-2', '2-3'].map(key => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {['1-1', '1-2', '2-1', '2-2'].map(key => {
               const [g, c] = key.split('-');
               const grade = Number(g) as GradeLevel;
               const classNum = Number(c);
@@ -419,37 +418,48 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             <div>
               <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-[#E2FF00]" />
-                <span>대진표 및 코트 시간표 설정</span>
+                <span>대진표 및 코트 배정 현황</span>
               </h3>
               <p className="text-xs text-white/50 mt-1">
-                6개 라운드의 경기 시간 및 배정 코트를 확인할 수 있습니다.
+                6개 라운드의 배정 코트(1·2코트: Match 1, 3·4코트: Match 2) 및 진행 상태를 확인할 수 있습니다.
               </p>
             </div>
           </div>
 
           <div className="space-y-4">
-            {matches.map((tie) => (
-              <div key={tie.id} className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-white">
-                    제{tie.roundId}라운드 ({tie.date}) • {tie.grade}학년 {tie.teamAClass}반 vs {tie.teamBClass}반
-                  </span>
-                  <span className="text-white/50 font-mono">SCORE: {tie.teamAWins} - {tie.teamBWins}</span>
-                </div>
+            {matches.map((tie) => {
+              const teamAGrade = tie.teamAGrade || tie.grade;
+              const teamBGrade = tie.teamBGrade || tie.grade;
+              const matchNum = tie.id.endsWith('M1') ? 1 : 2;
 
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
-                  {tie.subMatches.map(sm => (
-                    <div key={sm.id} className="p-2.5 rounded-lg bg-[#12192B] border border-white/5 space-y-1">
-                      <div className="font-bold text-[#E2FF00] text-[11px]">{sm.category}</div>
-                      <div className="text-[10px] text-white/40 font-mono">{sm.court} • {sm.scheduledTime}</div>
-                      <div className="text-[10px] font-bold text-white/90">
-                        {sm.status === 'COMPLETED' ? `완료 (${sm.winnerTeam === 'A' ? `${tie.teamAClass}반` : `${tie.teamBClass}반`} 승)` : '예정'}
-                      </div>
+              return (
+                <div key={tie.id} className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 font-bold text-white">
+                      <span className="px-2 py-0.5 rounded bg-[#E2FF00]/15 text-[#E2FF00] font-mono">
+                        MATCH {matchNum} ({matchNum === 1 ? '제1·2코트' : '제3·4코트'})
+                      </span>
+                      <span>
+                        제{tie.roundId}라운드 ({tie.date}) • {teamAGrade}학년 {tie.teamAClass}반 vs {teamBGrade}학년 {tie.teamBClass}반
+                      </span>
                     </div>
-                  ))}
+                    <span className="text-white/50 font-mono">SCORE: {tie.teamAWins} - {tie.teamBWins}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
+                    {tie.subMatches.map(sm => (
+                      <div key={sm.id} className="p-2.5 rounded-lg bg-[#12192B] border border-white/5 space-y-1">
+                        <div className="font-bold text-[#E2FF00] text-[11px]">{sm.category}</div>
+                        <div className="text-[10px] text-white/40 font-mono">{sm.court}</div>
+                        <div className="text-[10px] font-bold text-white/90">
+                          {sm.status === 'COMPLETED' ? `완료 (${sm.winnerTeam === 'A' ? `${teamAGrade}-${tie.teamAClass}` : `${teamBGrade}-${tie.teamBClass}`} 승)` : '예정'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
