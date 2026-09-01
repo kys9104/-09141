@@ -18,13 +18,13 @@ import {
 } from '../data/initialData';
 
 const STORAGE_KEYS = {
-  TIE_MATCHES: 'sinan_badminton_matches_v7',
-  REFLECTIONS: 'sinan_badminton_reflections_v7',
-  SPORTS_REPS: 'sinan_badminton_sports_reps_v7',
-  GAS_CONFIG: 'sinan_badminton_gas_config_v7',
-  CURRENT_USER: 'sinan_badminton_current_user_v7',
-  LINEUPS: 'sinan_badminton_lineups_v7',
-  CUSTOM_STUDENTS: 'sinan_badminton_students_v7'
+  TIE_MATCHES: 'sinan_badminton_matches_v8',
+  REFLECTIONS: 'sinan_badminton_reflections_v8',
+  SPORTS_REPS: 'sinan_badminton_sports_reps_v8',
+  GAS_CONFIG: 'sinan_badminton_gas_config_v8',
+  CURRENT_USER: 'sinan_badminton_current_user_v8',
+  LINEUPS: 'sinan_badminton_lineups_v8',
+  CUSTOM_STUDENTS: 'sinan_badminton_students_v8'
 };
 
 export class StorageService {

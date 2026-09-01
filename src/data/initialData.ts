@@ -128,7 +128,6 @@ export const OFFICIAL_STUDENTS_ROSTER: Record<string, { num: number; name: strin
     { num: 3, name: '김준성', gender: 'M' },
     { num: 4, name: '김현지', gender: 'F' },
     { num: 5, name: '명지호', gender: 'M' },
-    { num: 6, name: '박재형', gender: 'M' },
     { num: 7, name: '박주영', gender: 'M' },
     { num: 8, name: '박호연', gender: 'M' },
     { num: 9, name: '백호', gender: 'M' },
@@ -137,7 +136,6 @@ export const OFFICIAL_STUDENTS_ROSTER: Record<string, { num: number; name: strin
     { num: 12, name: '양준성', gender: 'M' },
     { num: 13, name: '이관훈', gender: 'M' },
     { num: 14, name: '이민수', gender: 'M' },
-    { num: 15, name: '이수인', gender: 'F' },
     { num: 16, name: '이예준', gender: 'M' },
     { num: 17, name: '임솔지', gender: 'F' },
     { num: 18, name: '장범석', gender: 'M' },
@@ -147,7 +145,6 @@ export const OFFICIAL_STUDENTS_ROSTER: Record<string, { num: number; name: strin
   ],
   '1-2': [
     { num: 1, name: '강성수', gender: 'M' },
-    { num: 2, name: '권태인', gender: 'M' },
     { num: 3, name: '김보현', gender: 'F' },
     { num: 4, name: '김예준', gender: 'M' },
     { num: 5, name: '문경호', gender: 'M' },
@@ -164,8 +161,7 @@ export const OFFICIAL_STUDENTS_ROSTER: Record<string, { num: number; name: strin
     { num: 16, name: '정솔비', gender: 'F' },
     { num: 17, name: '조하얀', gender: 'F' },
     { num: 18, name: '주단비', gender: 'F' },
-    { num: 19, name: '최우진', gender: 'M' },
-    { num: 20, name: '최현성', gender: 'M' }
+    { num: 19, name: '최우진', gender: 'M' }
   ],
   '2-1': [
     { num: 1, name: '강성률', gender: 'M' },
@@ -178,7 +174,6 @@ export const OFFICIAL_STUDENTS_ROSTER: Record<string, { num: number; name: strin
     { num: 8, name: '김현우', gender: 'M' },
     { num: 9, name: '신승민', gender: 'M' },
     { num: 10, name: '안현서', gender: 'F' },
-    { num: 11, name: '이지후', gender: 'M' },
     { num: 12, name: '이하늘', gender: 'F' },
     { num: 13, name: '장준혁', gender: 'M' },
     { num: 14, name: '정서연', gender: 'F' },
@@ -188,10 +183,8 @@ export const OFFICIAL_STUDENTS_ROSTER: Record<string, { num: number; name: strin
     { num: 18, name: '한준범', gender: 'M' }
   ],
   '2-2': [
-    { num: 1, name: '김다은', gender: 'F' },
     { num: 2, name: '김대륜', gender: 'M' },
     { num: 3, name: '김승민', gender: 'M' },
-    { num: 4, name: '김희주', gender: 'F' },
     { num: 5, name: '문경원', gender: 'M' },
     { num: 6, name: '문대호', gender: 'M' },
     { num: 7, name: '박대성', gender: 'M' },
