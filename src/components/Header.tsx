@@ -1,0 +1,165 @@
+import React from 'react';
+import { 
+  Trophy, 
+  Calendar, 
+  BarChart3, 
+  BookOpen, 
+  ShieldCheck, 
+  FileSpreadsheet, 
+  LogOut, 
+  LogIn, 
+  Zap,
+  Activity,
+  UserCheck
+} from 'lucide-react';
+import { UserProfile } from '../types';
+
+interface HeaderProps {
+  currentUser: UserProfile | null;
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  onOpenLogin: () => void;
+  onLogout: () => void;
+  onOpenGAS: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({
+  currentUser,
+  activeTab,
+  setActiveTab,
+  onOpenLogin,
+  onLogout,
+  onOpenGAS
+}) => {
+  const getRoleBadge = () => {
+    if (!currentUser) return null;
+    switch (currentUser.role) {
+      case 'TEACHER':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <ShieldCheck className="w-3.5 h-3.5" /> 체육교사 (ADMIN)
+          </span>
+        );
+      case 'STUDENT_COUNCIL':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+            <Activity className="w-3.5 h-3.5" /> 학생자치회
+          </span>
+        );
+      case 'SPORTS_REP':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30">
+            <UserCheck className="w-3.5 h-3.5" /> 체육부장/반장
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white/80 border border-white/10">
+            일반 학생
+          </span>
+        );
+    }
+  };
+
+  const navItems = [
+    { id: 'STANDINGS', label: '리그 순위표', icon: Trophy },
+    { id: 'SCHEDULE', label: '경기 일정 / 결과', icon: Calendar },
+    { id: 'STATS', label: '선수 스텟 & MVP', icon: BarChart3 },
+    { id: 'DIARY', label: '개인 소감 / 기록', icon: BookOpen },
+    { id: 'TEACHER', label: '교사·운영 대시보드', icon: ShieldCheck, highlight: true }
+  ];
+
+  return (
+    <header className="sticky top-0 z-40 bg-[#12192B] border-b border-white/10 shadow-lg">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8">
+        <div className="flex items-center justify-between h-16 sm:h-18 gap-4">
+          
+          {/* Logo & Title */}
+          <div className="flex items-center gap-3.5 cursor-pointer select-none" onClick={() => setActiveTab('STANDINGS')}>
+            <div className="w-10 h-10 bg-[#E2FF00] rounded-xl flex items-center justify-center shadow-[0_0_12px_rgba(226,255,0,0.35)] shrink-0">
+              <Zap className="w-5 h-5 text-black fill-black" />
+            </div>
+            <div>
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-1.5">
+                신안해양과학고 <span className="text-[#E2FF00]">배드민턴 리그</span>
+              </h1>
+              <p className="text-[10px] text-white/40 uppercase tracking-[0.2em] font-mono">
+                BADMINTON LEAGUE MANAGEMENT v2.0
+              </p>
+            </div>
+          </div>
+
+          {/* Right Header Actions */}
+          <div className="flex items-center gap-3">
+            {/* GAS Sync Quick Button */}
+            <button
+              onClick={onOpenGAS}
+              id="gas-settings-btn"
+              title="Google Apps Script 연동 설정"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#E2FF00]" />
+              <span>GAS 연동</span>
+            </button>
+
+            {currentUser ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-white/5 rounded-full px-3.5 py-1.5 border border-white/10">
+                  <div className="w-2 h-2 rounded-full bg-[#E2FF00] shadow-[0_0_8px_#E2FF00] animate-pulse"></div>
+                  <span className="text-xs font-semibold text-white/90 hidden sm:inline">
+                    {currentUser.grade > 0 ? `${currentUser.grade}학년 ${currentUser.classNum}반 ${currentUser.name}` : currentUser.name}
+                  </span>
+                  <div className="scale-90 origin-right">{getRoleBadge()}</div>
+                </div>
+
+                <button
+                  onClick={onLogout}
+                  id="logout-btn"
+                  title="로그아웃"
+                  className="text-xs text-white/60 hover:text-rose-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={onOpenLogin}
+                id="login-btn"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-[#E2FF00] hover:bg-[#d5f000] text-black shadow-[0_0_15px_rgba(226,255,0,0.25)] transition active:scale-95"
+              >
+                <LogIn className="w-4 h-4 text-black" />
+                <span>로그인</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto py-2 scrollbar-none text-xs sm:text-sm border-t border-white/5">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                id={`nav-${item.id.toLowerCase()}-btn`}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors duration-150 ${
+                  isActive
+                    ? 'bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30 font-semibold'
+                    : item.highlight
+                    ? 'text-amber-300 hover:bg-amber-500/10 border border-amber-500/20'
+                    : 'text-white/60 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-400' : item.highlight ? 'text-amber-400' : 'text-white/50'}`} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </header>
+  );
+};
+
