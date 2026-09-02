@@ -15,6 +15,7 @@ import confetti from 'canvas-confetti';
 import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile } from '../types';
 import { StorageService } from '../services/storageService';
 import { GASService } from '../services/gasService';
+import { GoogleSheetsService } from '../services/googleSheetsService';
 
 interface MatchResultEntryModalProps {
   isOpen: boolean;
@@ -161,7 +162,10 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
     matches[tieIdx] = t;
     StorageService.saveMatches(matches);
 
-    // Auto-sync with Google Apps Script
+    // Auto-sync with Google Sheets REST API & GAS
+    GoogleSheetsService.appendMatchResult(t, currentUser?.name || '학생자치회/교사').catch(err => {
+      console.warn('Google Sheets sync notice:', err.message);
+    });
     GASService.sendToGAS('MATCH_RESULT', t).catch(console.error);
 
     confetti({

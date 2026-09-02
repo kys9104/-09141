@@ -20,7 +20,7 @@ interface HeaderProps {
   setActiveTab: (tab: string) => void;
   onOpenLogin: () => void;
   onLogout: () => void;
-  onOpenGAS: () => void;
+  onOpenGoogleSheets: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   onOpenLogin,
   onLogout,
-  onOpenGAS
+  onOpenGoogleSheets
 }) => {
   const getRoleBadge = () => {
     if (!currentUser) return null;
@@ -91,15 +91,15 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-3">
-            {/* GAS Sync Quick Button */}
+            {/* Google Sheets Sync Quick Button */}
             <button
-              onClick={onOpenGAS}
-              id="gas-settings-btn"
-              title="Google Apps Script 연동 설정"
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors"
+              onClick={onOpenGoogleSheets}
+              id="google-sheets-sync-btn"
+              title="Google 스프레드시트 실시간 연동"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)]"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#E2FF00]" />
-              <span>GAS 연동</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>구글 시트 연동</span>
             </button>
 
             {currentUser ? (

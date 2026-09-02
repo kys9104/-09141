@@ -22,6 +22,7 @@ import {
 import { CATEGORIES, LEAGUE_ROUNDS } from '../data/initialData';
 import { StorageService } from '../services/storageService';
 import { GASService } from '../services/gasService';
+import { GoogleSheetsService } from '../services/googleSheetsService';
 import { StudentEvaluationService } from '../services/studentEvaluationService';
 
 interface PersonalDiaryViewProps {
@@ -84,7 +85,10 @@ export const PersonalDiaryView: React.FC<PersonalDiaryViewProps> = ({
     const updated = StorageService.addReflection(newReflection);
     setReflections(updated);
 
-    // Auto-sync with Google Apps Script
+    // Auto-sync with Google Sheets REST API & GAS
+    GoogleSheetsService.appendStudentReflection(newReflection).catch(err => {
+      console.warn('Google Sheets sync reflection notice:', err.message);
+    });
     GASService.sendToGAS('STUDENT_REFLECTION', newReflection).catch(console.error);
 
     setContent('');

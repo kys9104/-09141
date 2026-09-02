@@ -9,7 +9,7 @@ import { LoginModal } from './components/LoginModal';
 import { LineupSubmissionModal } from './components/LineupSubmissionModal';
 import { MatchResultEntryModal } from './components/MatchResultEntryModal';
 import { LiveScoreModal } from './components/LiveScoreModal';
-import { GASIntegrationModal } from './components/GASIntegrationModal';
+import { GoogleSheetsSyncModal } from './components/GoogleSheetsSyncModal';
 
 import { UserProfile, MatchCategory } from './types';
 import { StorageService } from './services/storageService';
@@ -127,7 +127,7 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
-        onOpenGAS={() => setIsGASModalOpen(true)}
+        onOpenGoogleSheets={() => setIsGASModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -216,7 +216,7 @@ export default function App() {
         onOpenLogin={() => setIsLoginModalOpen(true)}
       />
 
-      <GASIntegrationModal
+      <GoogleSheetsSyncModal
         isOpen={isGASModalOpen}
         onClose={() => setIsGASModalOpen(false)}
       />

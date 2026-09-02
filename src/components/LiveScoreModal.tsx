@@ -15,6 +15,7 @@ import confetti from 'canvas-confetti';
 import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile } from '../types';
 import { StorageService } from '../services/storageService';
 import { GASService } from '../services/gasService';
+import { GoogleSheetsService } from '../services/googleSheetsService';
 
 interface LiveScoreModalProps {
   isOpen: boolean;
@@ -178,7 +179,12 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
     matches[tieIdx] = t;
     StorageService.saveMatches(matches);
 
-    // Auto-sync to Google Apps Script
+    // Auto-sync to Google Sheets REST API & GAS
+    if (isMatchDone) {
+      GoogleSheetsService.appendMatchResult(t, currentUser?.name || '학생자치회/교사').catch(err => {
+        console.warn('Google Sheets sync notice:', err.message);
+      });
+    }
     GASService.sendToGAS('MATCH_RESULT', t).catch(console.error);
 
     if (isMatchDone) {
