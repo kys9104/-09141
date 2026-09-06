@@ -1,6 +1,5 @@
 import { 
   TieMatch, 
-  StudentReflection, 
   ClassStanding, 
   Player, 
   GradeLevel, 
@@ -11,7 +10,6 @@ import {
 } from '../types';
 import { 
   INITIAL_TIE_MATCHES, 
-  INITIAL_REFLECTIONS, 
   DEFAULT_SPORTS_REPRESENTATIVES,
   INITIAL_GAS_CONFIG,
   SAMPLE_STUDENTS
@@ -19,7 +17,6 @@ import {
 
 const STORAGE_KEYS = {
   TIE_MATCHES: 'sinan_badminton_matches_v8',
-  REFLECTIONS: 'sinan_badminton_reflections_v8',
   SPORTS_REPS: 'sinan_badminton_sports_reps_v8',
   GAS_CONFIG: 'sinan_badminton_gas_config_v8',
   CURRENT_USER: 'sinan_badminton_current_user_v8',
@@ -44,31 +41,6 @@ export class StorageService {
     } catch (e) {
       console.error('Failed to save matches', e);
     }
-  }
-
-  static getReflections(): StudentReflection[] {
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.REFLECTIONS);
-      if (data) return JSON.parse(data);
-    } catch (e) {
-      console.error('Failed to parse reflections', e);
-    }
-    return INITIAL_REFLECTIONS;
-  }
-
-  static saveReflections(reflections: StudentReflection[]): void {
-    try {
-      localStorage.setItem(STORAGE_KEYS.REFLECTIONS, JSON.stringify(reflections));
-    } catch (e) {
-      console.error('Failed to save reflections', e);
-    }
-  }
-
-  static addReflection(reflection: StudentReflection): StudentReflection[] {
-    const list = this.getReflections();
-    const updated = [reflection, ...list];
-    this.saveReflections(updated);
-    return updated;
   }
 
   static getSportsRepresentatives(): Record<string, string> {
@@ -438,7 +410,6 @@ export class StorageService {
   // Reset to Factory Default
   static resetToDefault(): void {
     localStorage.removeItem(STORAGE_KEYS.TIE_MATCHES);
-    localStorage.removeItem(STORAGE_KEYS.REFLECTIONS);
     localStorage.removeItem(STORAGE_KEYS.SPORTS_REPS);
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     localStorage.removeItem(STORAGE_KEYS.CUSTOM_STUDENTS);

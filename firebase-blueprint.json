@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with assigned school sports role (admin, captain, council, student)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "name": { "type": "string", "description": "Student or Teacher Name" },
+        "grade": { "type": "number", "description": "Grade level (1 or 2)" },
+        "classNum": { "type": "number", "description": "Class number (1 or 2)" },
+        "studentNum": { "type": "number", "description": "Student number in class" },
+        "role": { 
+          "type": "string", 
+          "enum": ["admin", "captain", "council", "student"],
+          "description": "Assigned authorization role" 
+        },
+        "updatedAt": { "type": "string", "description": "Last updated ISO timestamp" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "Roster": {
+      "title": "Roster",
+      "description": "Class match roster / lineup submitted by class captain or admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Roster entry ID" },
+        "roundId": { "type": "number", "description": "League round number (1-6)" },
+        "grade": { "type": "number", "description": "Grade level" },
+        "classNum": { "type": "number", "description": "Class number" },
+        "category": { "type": "string", "description": "Match category (MEN_SINGLES, etc.)" },
+        "players": { "type": "array", "description": "Selected players list" },
+        "submittedBy": { "type": "string", "description": "Submitter name or UID" },
+        "submittedAt": { "type": "string", "description": "Submission ISO timestamp" },
+        "isLocked": { "type": "boolean", "description": "Whether roster is locked" }
+      },
+      "required": ["id", "roundId", "grade", "classNum", "category", "players", "submittedBy"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Tie match and sub-match scores entered by student council or admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Match ID" },
+        "roundId": { "type": "number", "description": "League round number" },
+        "teamAGrade": { "type": "number", "description": "Team A Grade" },
+        "teamAClass": { "type": "number", "description": "Team A Class" },
+        "teamBGrade": { "type": "number", "description": "Team B Grade" },
+        "teamBClass": { "type": "number", "description": "Team B Class" },
+        "date": { "type": "string", "description": "Match scheduled date" },
+        "status": { "type": "string", "description": "Match status" },
+        "subMatches": { "type": "array", "description": "Individual sub-matches" },
+        "teamAWins": { "type": "number", "description": "Submatches won by A" },
+        "teamBWins": { "type": "number", "description": "Submatches won by B" },
+        "winnerClass": { "type": "number", "description": "Winning class number" },
+        "updatedAt": { "type": "string", "description": "Update timestamp" },
+        "updatedBy": { "type": "string", "description": "Recorded by council/admin" }
+      },
+      "required": ["id", "roundId", "teamAGrade", "teamAClass", "teamBGrade", "teamBClass", "subMatches", "status"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "System settings including Google Apps Script webhook URL",
+      "type": "object",
+      "properties": {
+        "gasUrl": { "type": "string", "description": "Google Apps Script Web App URL" },
+        "updatedAt": { "type": "string", "description": "Last updated timestamp" },
+        "updatedBy": { "type": "string", "description": "Teacher admin who configured this" }
+      },
+      "required": ["gasUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles with role permissions"
+    },
+    "/rosters/{rosterId}": {
+      "schema": { "$ref": "#/entities/Roster" },
+      "description": "Submitted rosters by class captains"
+    },
+    "/matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Official match results and live scores by student council"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "App settings such as Google Apps Script sync URL"
+    }
+  }
+}

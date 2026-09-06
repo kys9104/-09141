@@ -1,6 +1,6 @@
 {
   "name": "신안해양과학고등학교 배드민턴 리그전",
-  "description": "신안해양과학고등학교 1·2학년 배드민턴 리그전 운영, 대진표, 실시간 스코어보드, 출전명단 작성 및 생활기록부 자동 생성 웹앱",
+  "description": "신안해양과학고등학교 1·2학년 배드민턴 리그전 운영, 대진표, 실시간 스코어보드, 반장/체육부장 출전명단 작성 및 Firebase 연동 웹앱",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -3,16 +3,21 @@ import {
   Trophy, 
   Calendar, 
   BarChart3, 
-  BookOpen, 
   ShieldCheck, 
   FileSpreadsheet, 
   LogOut, 
   LogIn, 
   Zap,
   Activity,
-  UserCheck
+  UserCheck,
+  ClipboardList
 } from 'lucide-react';
-import { UserProfile } from '../types';
+import { 
+  UserProfile, 
+  isAdminRole, 
+  isCaptainRole, 
+  isCouncilRole 
+} from '../types';
 
 interface HeaderProps {
   currentUser: UserProfile | null;
@@ -31,42 +36,51 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   onOpenGoogleSheets
 }) => {
+  const isAdmin = isAdminRole(currentUser?.role);
+  const isCaptain = isCaptainRole(currentUser?.role);
+  const isCouncil = isCouncilRole(currentUser?.role);
+
   const getRoleBadge = () => {
     if (!currentUser) return null;
-    switch (currentUser.role) {
-      case 'TEACHER':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            <ShieldCheck className="w-3.5 h-3.5" /> 체육교사 (ADMIN)
-          </span>
-        );
-      case 'STUDENT_COUNCIL':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-            <Activity className="w-3.5 h-3.5" /> 학생자치회
-          </span>
-        );
-      case 'SPORTS_REP':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30">
-            <UserCheck className="w-3.5 h-3.5" /> 체육부장/반장
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white/80 border border-white/10">
-            일반 학생
-          </span>
-        );
+    if (isAdmin) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+          <ShieldCheck className="w-3.5 h-3.5" /> 체육교사 (Admin)
+        </span>
+      );
     }
+    if (isCouncil) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+          <Activity className="w-3.5 h-3.5" /> 학생자치회 (Council)
+        </span>
+      );
+    }
+    if (isCaptain) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30">
+          <UserCheck className="w-3.5 h-3.5" /> 반장/체육부장 (Captain)
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white/80 border border-white/10">
+        일반 학생 (Student)
+      </span>
+    );
   };
 
+  // Construct dynamic nav items according to the 4-tier roles
   const navItems = [
     { id: 'STANDINGS', label: '리그 순위표', icon: Trophy },
     { id: 'SCHEDULE', label: '경기 일정 / 결과', icon: Calendar },
-    { id: 'STATS', label: '학급별 종합 경기 지표 요약', icon: BarChart3 },
-    { id: 'DIARY', label: '개인 소감 / 기록', icon: BookOpen },
-    { id: 'TEACHER', label: '교사·운영 대시보드', icon: ShieldCheck, highlight: true }
+    { id: 'STATS', label: '학급별 종합 경기 지표', icon: BarChart3 },
+    // Captain & Admin only: 출전명단 작성
+    ...((isCaptain || isAdmin) ? [
+      { id: 'ROSTER_SUBMIT', label: '출전명단 작성', icon: ClipboardList, highlightCaptain: true }
+    ] : []),
+    // Admin only or always visible with teacher badge
+    { id: 'TEACHER', label: '교사 관리자 대시보드', icon: ShieldCheck, highlightAdmin: true }
   ];
 
   return (
@@ -99,14 +113,14 @@ export const Header: React.FC<HeaderProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)]"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-              <span>구글 시트 연동</span>
+              <span className="hidden sm:inline">구글 시트 연동</span>
             </button>
 
             {currentUser ? (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 bg-white/5 rounded-full px-3.5 py-1.5 border border-white/10">
                   <div className="w-2 h-2 rounded-full bg-[#E2FF00] shadow-[0_0_8px_#E2FF00] animate-pulse"></div>
-                  <span className="text-xs font-semibold text-white/90 hidden sm:inline">
+                  <span className="text-xs font-semibold text-white/90 hidden md:inline">
                     {currentUser.grade > 0 ? `${currentUser.grade}학년 ${currentUser.classNum}반 ${currentUser.name}` : currentUser.name}
                   </span>
                   <div className="scale-90 origin-right">{getRoleBadge()}</div>
@@ -146,13 +160,23 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setActiveTab(item.id)}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors duration-150 ${
                   isActive
-                    ? 'bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30 font-semibold'
-                    : item.highlight
+                    ? 'bg-[#E2FF00]/20 text-[#E2FF00] rounded-lg border border-[#E2FF00]/40 font-bold shadow-[0_0_10px_rgba(226,255,0,0.15)]'
+                    : item.highlightAdmin
                     ? 'text-amber-300 hover:bg-amber-500/10 border border-amber-500/20'
+                    : item.highlightCaptain
+                    ? 'text-[#E2FF00] hover:bg-[#E2FF00]/10 border border-[#E2FF00]/20 font-semibold'
                     : 'text-white/60 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-400' : item.highlight ? 'text-amber-400' : 'text-white/50'}`} />
+                <Icon className={`w-3.5 h-3.5 ${
+                  isActive 
+                    ? 'text-[#E2FF00]' 
+                    : item.highlightAdmin 
+                    ? 'text-amber-400' 
+                    : item.highlightCaptain
+                    ? 'text-[#E2FF00]'
+                    : 'text-white/50'
+                }`} />
                 <span>{item.label}</span>
               </button>
             );
@@ -162,4 +186,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-

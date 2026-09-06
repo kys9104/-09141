@@ -4,7 +4,6 @@ import {
   Player, 
   TieMatch, 
   SubMatch, 
-  StudentReflection,
   GASConfig
 } from '../types';
 
@@ -493,8 +492,6 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     subMatches: createSubMatches('SM-R6-M2', true)
   }
 ];
-
-export const INITIAL_REFLECTIONS: StudentReflection[] = [];
 
 export const INITIAL_GAS_CONFIG: GASConfig = {
   webAppUrl: '',

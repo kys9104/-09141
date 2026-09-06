@@ -1,8 +1,34 @@
 export type GradeLevel = 1 | 2;
 
-export type UserRole = 'STUDENT' | 'SPORTS_REP' | 'STUDENT_COUNCIL' | 'TEACHER';
+export type UserRole = 
+  | 'admin'    // ① 체육교사(Admin): 전체 결과 관리(수정/삭제), GAS URL 설정, 반장/체육부장 권한 부여
+  | 'captain'  // ② 지정된 반장 및 체육부장: 자기 반의 출전명단(Roster) 작성 및 제출 전용
+  | 'council'  // ③ 학생자치회: 경기 결과(점수 등) 입력 전용
+  | 'student'  // ④ 일반 학생: 모든 명단과 경기 결과 조회 전용
+  | 'TEACHER'  // 레거시 호환
+  | 'SPORTS_REP' 
+  | 'STUDENT_COUNCIL' 
+  | 'STUDENT';
+
+export function isAdminRole(role?: string): boolean {
+  return role === 'admin' || role === 'TEACHER';
+}
+
+export function isCaptainRole(role?: string): boolean {
+  return role === 'captain' || role === 'SPORTS_REP' || isAdminRole(role);
+}
+
+export function isCouncilRole(role?: string): boolean {
+  return role === 'council' || role === 'STUDENT_COUNCIL' || isAdminRole(role);
+}
+
+export function isStudentOnlyRole(role?: string): boolean {
+  return !role || role === 'student' || role === 'STUDENT';
+}
 
 export interface UserProfile {
+  uid?: string;
+  email?: string;
   grade: GradeLevel;
   classNum: number;
   studentNum: number;
@@ -134,39 +160,6 @@ export interface ClassStanding {
   scoreLost: number;
   scoreDiff: number;
   rank: number;
-}
-
-export interface StudentReflection {
-  id: string;
-  createdAt: string;
-  grade: GradeLevel;
-  classNum: number;
-  studentNum: number;
-  studentName: string;
-  roundId: number;
-  category: MatchCategory;
-  opponentClass: number;
-  roleInMatch: 'PLAYER' | 'CHEERING' | 'REFEREE' | 'STAFF' | 'SPECTATOR';
-  rating: number; // 1 to 5
-  sportsmanshipCheck: boolean;
-  improvedSkills: string[];
-  content: string;
-  teacherComment?: string;
-}
-
-export interface StudentRecordDraft {
-  studentName: string;
-  grade: GradeLevel;
-  classNum: number;
-  studentNum: number;
-  role: UserRole;
-  matchesPlayed: number;
-  wins: number;
-  winRate: number;
-  reflectionsCount: number;
-  sportsmanshipScore: number;
-  generatedRecord: string; // 생기부 세특 문구
-  generatedRecordBehavior: string; // 행동특성 및 종합의견 문구
 }
 
 export interface GASConfig {

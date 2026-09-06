@@ -21,10 +21,14 @@ import {
   TieMatch, 
   SubMatch, 
   UserProfile,
-  MatchCategory
+  MatchCategory,
+  isAdminRole,
+  isCaptainRole,
+  isCouncilRole
 } from '../types';
 import { LEAGUE_ROUNDS, CATEGORIES } from '../data/initialData';
 import { StorageService } from '../services/storageService';
+import { FirebaseService } from '../services/firebaseService';
 
 interface ScheduleRoundViewProps {
   currentUser: UserProfile | null;
@@ -33,7 +37,6 @@ interface ScheduleRoundViewProps {
   onOpenLineupModal: (tieMatchId: string, roundId: number) => void;
   onOpenResultEntryModal: (tieMatchId: string, subMatchId: string) => void;
   onOpenLiveScoreModal: (tieMatchId: string, subMatchId: string) => void;
-  onOpenDiaryModal: (roundId: number, category: MatchCategory, opponentClass: number) => void;
   onResultDeleted?: () => void;
 }
 
@@ -44,7 +47,6 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
   onOpenLineupModal,
   onOpenResultEntryModal,
   onOpenLiveScoreModal,
-  onOpenDiaryModal,
   onResultDeleted
 }) => {
   const [internalRoundId, setInternalRoundId] = useState<number>(1);
@@ -73,9 +75,9 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
     m => m.roundId === selectedRoundId
   );
 
-  const isTeacher = currentUser?.role === 'TEACHER';
-  const isStudentCouncil = currentUser?.role === 'STUDENT_COUNCIL';
-  const isSportsRep = currentUser?.role === 'SPORTS_REP' || currentUser?.isSportsRep;
+  const isTeacher = isAdminRole(currentUser?.role);
+  const isStudentCouncil = isCouncilRole(currentUser?.role);
+  const isSportsRep = isCaptainRole(currentUser?.role) || isTeacher;
 
   const handleDeleteExecute = () => {
     if (!isTeacher || !deleteConfirmModal) return;
@@ -84,6 +86,12 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
       StorageService.deleteSubMatchResult(deleteConfirmModal.tieId, deleteConfirmModal.subMatchId);
     } else if (deleteConfirmModal.type === 'TIE') {
       StorageService.deleteTieMatchResult(deleteConfirmModal.tieId);
+    }
+
+    const updatedMatches = StorageService.getMatches();
+    const targetMatch = updatedMatches.find(m => m.id === deleteConfirmModal.tieId);
+    if (targetMatch) {
+      FirebaseService.saveMatch(targetMatch, '체육교사(결과삭제)').catch(console.error);
     }
 
     setDeleteConfirmModal(null);
@@ -198,14 +206,6 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
               <span>출전명단 작성</span>
             </button>
           )}
-
-          <button
-            onClick={() => onOpenDiaryModal(currentRound.id, 'MEN_SINGLES', 2)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition"
-          >
-            <FileEdit className="w-3.5 h-3.5 text-[#E2FF00]" />
-            <span>소감문 작성</span>
-          </button>
         </div>
       </div>
 

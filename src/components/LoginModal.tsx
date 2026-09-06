@@ -7,11 +7,11 @@ import {
   Activity, 
   Lock, 
   CheckCircle2,
-  AlertCircle,
-  Sparkles
+  AlertCircle
 } from 'lucide-react';
 import { GradeLevel, UserProfile, UserRole } from '../types';
 import { StorageService } from '../services/storageService';
+import { FirebaseService } from '../services/firebaseService';
 import { OFFICIAL_STUDENTS_ROSTER } from '../data/initialData';
 
 interface LoginModalProps {
@@ -29,8 +29,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [classNum, setClassNum] = useState<number>(1);
   const [studentNum, setStudentNum] = useState<number>(1);
   const [name, setName] = useState<string>('곽승준');
-  const [role, setRole] = useState<UserRole>('STUDENT');
-  const [isSportsRep, setIsSportsRep] = useState<boolean>(false);
+  const [role, setRole] = useState<UserRole>('student');
   const [teacherPassword, setTeacherPassword] = useState<string>('');
   const [studentCouncilPassword, setStudentCouncilPassword] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -38,9 +37,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const currentClassKey = `${grade}-${classNum}`;
   const classRoster = OFFICIAL_STUDENTS_ROSTER[currentClassKey] || [];
 
-  // Auto-sync name when grade/class/studentNum changes if in student mode
+  // Auto-sync name when grade/class/studentNum changes if in student/captain mode
   useEffect(() => {
-    if (role === 'TEACHER') {
+    if (role === 'admin' || role === 'TEACHER') {
       setName('체육교사');
     } else {
       const match = classRoster.find(s => s.num === studentNum);
@@ -55,13 +54,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
-    if (role === 'TEACHER') {
+    if (role === 'admin' || role === 'TEACHER') {
       if (teacherPassword !== '4161') {
-        setErrorMessage('체육교사 접근 비밀번호가 일치하지 않습니다.');
+        setErrorMessage('체육교사(Admin) 접근 비밀번호가 일치하지 않습니다.');
         return;
       }
       const teacherProfile: UserProfile = {
@@ -69,15 +68,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         classNum: 1,
         studentNum: 0,
         name: name.trim() || '체육교사',
-        role: 'TEACHER'
+        role: 'admin'
       };
       StorageService.saveCurrentUser(teacherProfile);
+      FirebaseService.saveUserProfile(teacherProfile);
       onLoginSuccess(teacherProfile);
       onClose();
       return;
     }
 
-    if (role === 'STUDENT_COUNCIL') {
+    if (role === 'council' || role === 'STUDENT_COUNCIL') {
       if (studentCouncilPassword !== '8650') {
         setErrorMessage('학생자치회 접근 비밀번호가 일치하지 않습니다.');
         return;
@@ -91,9 +91,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         classNum,
         studentNum,
         name: name.trim(),
-        role: 'STUDENT_COUNCIL'
+        role: 'council'
       };
       StorageService.saveCurrentUser(councilProfile);
+      FirebaseService.saveUserProfile(councilProfile);
       onLoginSuccess(councilProfile);
       onClose();
       return;
@@ -104,9 +105,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    let finalRole: UserRole = role;
-    if (isSportsRep) {
-      finalRole = 'SPORTS_REP';
+    const finalRole: UserRole = role === 'captain' || role === 'SPORTS_REP' ? 'captain' : 'student';
+
+    if (finalRole === 'captain') {
       StorageService.setSportsRepresentative(grade, classNum, name.trim());
     }
 
@@ -116,10 +117,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       studentNum,
       name: name.trim(),
       role: finalRole,
-      isSportsRep
+      isSportsRep: finalRole === 'captain'
     };
 
     StorageService.saveCurrentUser(userProfile);
+    FirebaseService.saveUserProfile(userProfile);
     onLoginSuccess(userProfile);
     onClose();
   };
@@ -135,8 +137,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <User className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight">리그전 사용자 로그인</h2>
-              <p className="text-xs text-white/50">학년, 반, 번호, 이름 및 권한을 선택하세요</p>
+              <h2 className="text-base font-bold text-white tracking-tight">사용자 역할 로그인</h2>
+              <p className="text-xs text-white/50">4단계 권한에 맞춰 계정을 선택하세요</p>
             </div>
           </div>
           <button
@@ -153,82 +155,83 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           {/* Role Selector Grid */}
           <div>
             <label className="block text-xs font-semibold text-white/60 mb-2 font-mono uppercase tracking-wider">
-              USER ROLE SELECT
+              USER ROLE SELECT (4단계 권한)
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => { setRole('STUDENT'); setIsSportsRep(false); }}
+                onClick={() => setRole('student')}
                 className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold text-left transition ${
-                  role === 'STUDENT' && !isSportsRep
+                  role === 'student' || role === 'STUDENT'
                     ? 'bg-[#E2FF00] border-[#E2FF00] text-black shadow-[0_0_10px_rgba(226,255,0,0.3)]'
                     : 'bg-[#0A0F1D] border-white/10 text-white/70 hover:border-white/20'
                 }`}
               >
-                <User className={`w-4 h-4 ${role === 'STUDENT' && !isSportsRep ? 'text-black' : 'text-[#E2FF00]'}`} />
+                <User className={`w-4 h-4 ${role === 'student' || role === 'STUDENT' ? 'text-black' : 'text-[#E2FF00]'}`} />
                 <div>
                   <div>일반 학생</div>
-                  <div className={`text-[10px] font-normal ${role === 'STUDENT' && !isSportsRep ? 'text-black/70' : 'text-white/40'}`}>조회 및 소감문 작성</div>
+                  <div className={`text-[10px] font-normal ${role === 'student' || role === 'STUDENT' ? 'text-black/70' : 'text-white/40'}`}>모든 명단·결과 조회</div>
                 </div>
               </button>
 
               <button
                 type="button"
-                onClick={() => { setRole('SPORTS_REP'); setIsSportsRep(true); }}
+                onClick={() => setRole('captain')}
                 className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold text-left transition ${
-                  isSportsRep
+                  role === 'captain' || role === 'SPORTS_REP'
                     ? 'bg-[#E2FF00] border-[#E2FF00] text-black shadow-[0_0_10px_rgba(226,255,0,0.3)]'
                     : 'bg-[#0A0F1D] border-white/10 text-white/70 hover:border-white/20'
                 }`}
               >
-                <UserCheck className={`w-4 h-4 ${isSportsRep ? 'text-black' : 'text-[#E2FF00]'}`} />
+                <UserCheck className={`w-4 h-4 ${role === 'captain' || role === 'SPORTS_REP' ? 'text-black' : 'text-[#E2FF00]'}`} />
                 <div>
-                  <div>체육부장 / 반장</div>
-                  <div className={`text-[10px] font-normal ${isSportsRep ? 'text-black/70' : 'text-white/40'}`}>출전 선수 명단 작성</div>
+                  <div>반장 / 체육부장</div>
+                  <div className={`text-[10px] font-normal ${role === 'captain' || role === 'SPORTS_REP' ? 'text-black/70' : 'text-white/40'}`}>출전명단 작성·제출</div>
                 </div>
               </button>
 
               <button
                 type="button"
-                onClick={() => { setRole('STUDENT_COUNCIL'); setIsSportsRep(false); }}
+                onClick={() => setRole('council')}
                 className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold text-left transition ${
-                  role === 'STUDENT_COUNCIL'
+                  role === 'council' || role === 'STUDENT_COUNCIL'
                     ? 'bg-[#E2FF00] border-[#E2FF00] text-black shadow-[0_0_10px_rgba(226,255,0,0.3)]'
                     : 'bg-[#0A0F1D] border-white/10 text-white/70 hover:border-white/20'
                 }`}
               >
-                <Activity className={`w-4 h-4 ${role === 'STUDENT_COUNCIL' ? 'text-black' : 'text-[#E2FF00]'}`} />
+                <Activity className={`w-4 h-4 ${role === 'council' || role === 'STUDENT_COUNCIL' ? 'text-black' : 'text-[#E2FF00]'}`} />
                 <div>
                   <div>학생자치회</div>
-                  <div className={`text-[10px] font-normal ${role === 'STUDENT_COUNCIL' ? 'text-black/70' : 'text-white/40'}`}>경기 승패/점수 입력</div>
+                  <div className={`text-[10px] font-normal ${role === 'council' || role === 'STUDENT_COUNCIL' ? 'text-black/70' : 'text-white/40'}`}>경기 결과·점수 입력</div>
                 </div>
               </button>
 
               <button
                 type="button"
-                onClick={() => { setRole('TEACHER'); setIsSportsRep(false); }}
+                onClick={() => setRole('admin')}
                 className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold text-left transition ${
-                  role === 'TEACHER'
+                  role === 'admin' || role === 'TEACHER'
                     ? 'bg-[#E2FF00] border-[#E2FF00] text-black shadow-[0_0_10px_rgba(226,255,0,0.3)]'
                     : 'bg-[#0A0F1D] border-white/10 text-white/70 hover:border-white/20'
                 }`}
               >
-                <ShieldCheck className={`w-4 h-4 ${role === 'TEACHER' ? 'text-black' : 'text-[#E2FF00]'}`} />
+                <ShieldCheck className={`w-4 h-4 ${role === 'admin' || role === 'TEACHER' ? 'text-black' : 'text-[#E2FF00]'}`} />
                 <div>
-                  <div>체육교사</div>
-                  <div className={`text-[10px] font-normal ${role === 'TEACHER' ? 'text-black/70' : 'text-white/40'}`}>전체 관리·생기부 세특</div>
+                  <div>체육교사(Admin)</div>
+                  <div className={`text-[10px] font-normal ${role === 'admin' || role === 'TEACHER' ? 'text-black/70' : 'text-white/40'}`}>전체 관리·권한 부여</div>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Student Council Password Input when Student Council selected */}
-          {role === 'STUDENT_COUNCIL' && (
+          {/* Student Council Password Input */}
+          {(role === 'council' || role === 'STUDENT_COUNCIL') && (
             <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/30 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
                   <Lock className="w-3.5 h-3.5" /> 학생자치회 비밀번호 인증
                 </label>
+                <span className="text-[10px] text-white/40 font-mono">기본: 8650</span>
               </div>
               <input
                 type="password"
@@ -241,13 +244,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           )}
 
-          {/* Teacher Password Input when Teacher selected */}
-          {role === 'TEACHER' && (
+          {/* Teacher Password Input */}
+          {(role === 'admin' || role === 'TEACHER') && (
             <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/30 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
-                  <Lock className="w-3.5 h-3.5" /> 체육교사 비밀번호 인증
+                  <Lock className="w-3.5 h-3.5" /> 체육교사(Admin) 비밀번호 인증
                 </label>
+                <span className="text-[10px] text-white/40 font-mono">기본: 4161</span>
               </div>
               <input
                 type="password"
@@ -260,132 +264,103 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           )}
 
-          {/* Student details (Grade, Class, Number, Name) */}
-          <div className="grid grid-cols-3 gap-2.5">
-            {/* Grade dropdown (1, 2) */}
-            <div>
-              <label className="block text-xs font-semibold text-white/70 mb-1.5">
-                학년
-              </label>
-              <select
-                id="grade-select"
-                value={grade}
-                onChange={(e) => setGrade(Number(e.target.value) as GradeLevel)}
-                className="w-full px-3 py-2 rounded-xl bg-[#0A0F1D] border border-white/10 text-white font-medium focus:outline-none focus:border-[#E2FF00] text-sm"
-              >
-                <option value={1}>1학년</option>
-                <option value={2}>2학년</option>
-              </select>
-            </div>
-
-            {/* Class dropdown (1, 2) */}
-            <div>
-              <label className="block text-xs font-semibold text-white/70 mb-1.5">
-                반
-              </label>
-              <select
-                id="class-select"
-                value={classNum}
-                onChange={(e) => setClassNum(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl bg-[#0A0F1D] border border-white/10 text-white font-medium focus:outline-none focus:border-[#E2FF00] text-sm"
-              >
-                <option value={1}>1반</option>
-                <option value={2}>2반</option>
-              </select>
-            </div>
-
-            {/* Number dropdown (dynamically populated from class roster) */}
-            <div>
-              <label className="block text-xs font-semibold text-white/70 mb-1.5 font-mono">
-                번호 ({classRoster.length}명)
-              </label>
-              <select
-                id="student-num-select"
-                value={studentNum}
-                onChange={(e) => setStudentNum(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl bg-[#0A0F1D] border border-white/10 text-white font-medium focus:outline-none focus:border-[#E2FF00] text-sm font-mono"
-              >
-                {classRoster.map((s) => (
-                  <option key={s.num} value={s.num}>
-                    {s.num}번 ({s.name})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Name Text Input / Verification */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-white/70">
-                학생 성명 (확인 및 수정)
-              </label>
-              <span className="text-[10px] text-[#E2FF00] flex items-center gap-1 font-mono">
-                <Sparkles className="w-3 h-3" /> 학적 명단 자동 동기화
-              </span>
-            </div>
-            <input
-              type="text"
-              id="student-name-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="예: 곽승준, 김건우"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-medium"
-            />
-          </div>
-
-          {/* Class Sports Representative designation checkbox */}
-          <div className="pt-1">
-            <label className="flex items-center gap-2.5 p-3 rounded-xl bg-[#0A0F1D] border border-white/10 cursor-pointer hover:border-white/20 transition">
-              <input
-                type="checkbox"
-                id="sports-rep-checkbox"
-                checked={isSportsRep}
-                onChange={(e) => {
-                  setIsSportsRep(e.target.checked);
-                  if (e.target.checked) setRole('SPORTS_REP');
-                  else if (role === 'SPORTS_REP') setRole('STUDENT');
-                }}
-                className="w-4 h-4 rounded text-[#E2FF00] focus:ring-0 bg-[#12192B] border-white/20 accent-[#E2FF00]"
-              />
-              <div>
-                <div className="text-xs font-bold text-white">
-                  해당 학급({grade}학년 {classNum}반)의 <span className="text-[#E2FF00] font-bold">체육부장 / 반장</span>입니다
+          {/* Grade and Class Selectors (for student, captain, council) */}
+          {role !== 'admin' && role !== 'TEACHER' && (
+            <div className="space-y-3 pt-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-white/60 mb-1.5 font-mono">
+                    GRADE (학년)
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[1, 2].map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGrade(g as GradeLevel)}
+                        className={`py-2 rounded-lg text-xs font-bold border transition ${
+                          grade === g
+                            ? 'bg-white/10 border-white/40 text-white'
+                            : 'bg-[#0A0F1D] border-white/5 text-white/50 hover:border-white/10'
+                        }`}
+                      >
+                        {g}학년
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-[11px] text-white/40">
-                  체크 시 라운드별 출전 선수 명단을 작성 및 제출할 수 있습니다.
+
+                <div>
+                  <label className="block text-xs font-semibold text-white/60 mb-1.5 font-mono">
+                    CLASS (반)
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[1, 2].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setClassNum(c)}
+                        className={`py-2 rounded-lg text-xs font-bold border transition ${
+                          classNum === c
+                            ? 'bg-white/10 border-white/40 text-white'
+                            : 'bg-[#0A0F1D] border-white/5 text-white/50 hover:border-white/10'
+                        }`}
+                      >
+                        {c}반
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </label>
-          </div>
 
-          {/* Error Message */}
+              {/* Student Number Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-white/60 mb-1.5 font-mono">
+                  STUDENT ROSTER (학번 및 성명)
+                </label>
+                <select
+                  value={studentNum}
+                  onChange={(e) => setStudentNum(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1D] border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#E2FF00]"
+                >
+                  {classRoster.map(s => (
+                    <option key={s.num} value={s.num}>
+                      {s.num}번 {s.name} ({s.gender === 'M' ? '남' : '여'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Name Display */}
+              <div>
+                <label className="block text-xs font-semibold text-white/60 mb-1 font-mono">
+                  STUDENT NAME
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1D] border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#E2FF00]"
+                />
+              </div>
+            </div>
+          )}
+
           {errorMessage && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2 font-mono">
+            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="pt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-1/3 py-2.5 rounded-xl text-xs font-bold text-white/70 bg-white/5 hover:bg-white/10 transition"
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              id="login-submit-btn"
-              className="w-2/3 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)] transition flex items-center justify-center gap-1.5"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>로그인 완료</span>
-            </button>
-          </div>
+          <button
+            type="submit"
+            className="w-full py-3 rounded-xl bg-[#E2FF00] hover:bg-[#c9e600] text-black font-extrabold text-sm transition shadow-[0_0_15px_rgba(226,255,0,0.2)] mt-2"
+          >
+            선택한 역할로 시작하기
+          </button>
         </form>
+
       </div>
     </div>
   );

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { StandingsView } from './components/StandingsView';
 import { ScheduleRoundView } from './components/ScheduleRoundView';
 import { StatsMvpView } from './components/StatsMvpView';
-import { PersonalDiaryView } from './components/PersonalDiaryView';
+import { RosterSubmissionView } from './components/RosterSubmissionView';
 import { TeacherDashboard } from './components/TeacherDashboard';
 import { LoginModal } from './components/LoginModal';
 import { LineupSubmissionModal } from './components/LineupSubmissionModal';
@@ -11,8 +11,9 @@ import { MatchResultEntryModal } from './components/MatchResultEntryModal';
 import { LiveScoreModal } from './components/LiveScoreModal';
 import { GoogleSheetsSyncModal } from './components/GoogleSheetsSyncModal';
 
-import { UserProfile, MatchCategory } from './types';
+import { UserProfile, isAdminRole, isCaptainRole } from './types';
 import { StorageService } from './services/storageService';
+import { FirebaseService } from './services/firebaseService';
 
 export default function App() {
   // Navigation tab state
@@ -61,27 +62,40 @@ export default function App() {
   // GAS Integration modal state
   const [isGASModalOpen, setIsGASModalOpen] = useState<boolean>(false);
 
-  // Diary quick trigger state
-  const [diaryTrigger, setDiaryTrigger] = useState<{
-    roundId: number;
-    category: MatchCategory;
-    opponentClass: number;
-  } | null>(null);
-
   // Sync state trigger
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
+  // Synchronize initial data with Firebase Firestore on mount
+  useEffect(() => {
+    const syncWithFirebase = async () => {
+      try {
+        const firestoreMatches = await FirebaseService.getMatches();
+        if (firestoreMatches && firestoreMatches.length > 0) {
+          StorageService.saveMatches(firestoreMatches);
+          setRefreshKey(k => k + 1);
+        }
+      } catch (err) {
+        console.warn('Initial Firebase sync note:', err);
+      }
+    };
+    syncWithFirebase();
+  }, []);
+
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
-    // If teacher, maybe redirect to teacher tab
-    if (user.role === 'TEACHER') {
+    if (isAdminRole(user.role)) {
       setActiveTab('TEACHER');
+    } else if (isCaptainRole(user.role)) {
+      setActiveTab('ROSTER_SUBMIT');
     }
   };
 
   const handleLogout = () => {
     StorageService.clearUserSession();
     setCurrentUser(null);
+    if (activeTab === 'TEACHER' || activeTab === 'ROSTER_SUBMIT') {
+      setActiveTab('STANDINGS');
+    }
   };
 
   const handleOpenLineupModal = (tieMatchId: string, roundId: number) => {
@@ -106,11 +120,6 @@ export default function App() {
       tieMatchId,
       subMatchId
     });
-  };
-
-  const handleOpenDiaryModal = (roundId: number, category: MatchCategory, opponentClass: number) => {
-    setDiaryTrigger({ roundId, category, opponentClass });
-    setActiveTab('DIARY');
   };
 
   const triggerRefresh = () => {
@@ -151,7 +160,6 @@ export default function App() {
             onOpenLineupModal={handleOpenLineupModal}
             onOpenResultEntryModal={handleOpenResultEntry}
             onOpenLiveScoreModal={handleOpenLiveScore}
-            onOpenDiaryModal={handleOpenDiaryModal}
             onResultDeleted={triggerRefresh}
           />
         )}
@@ -161,22 +169,23 @@ export default function App() {
           <StatsMvpView key={`stats-${refreshKey}`} />
         )}
 
-        {/* TAB 4: PERSONAL DIARY & REFLECTIONS */}
-        {activeTab === 'DIARY' && (
-          <PersonalDiaryView
-            key={`diary-${refreshKey}`}
+        {/* TAB 4: ROSTER SUBMISSION (Captain & Teacher Exclusive) */}
+        {activeTab === 'ROSTER_SUBMIT' && (
+          <RosterSubmissionView
+            key={`roster-${refreshKey}`}
             currentUser={currentUser}
-            onOpenLogin={() => setIsLoginModalOpen(true)}
+            onRosterUpdated={triggerRefresh}
           />
         )}
 
-        {/* TAB 5: TEACHER DASHBOARD */}
+        {/* TAB 5: TEACHER DASHBOARD (Admin Only) */}
         {activeTab === 'TEACHER' && (
           <TeacherDashboard
             key={`teacher-${refreshKey}`}
             currentUser={currentUser}
             onOpenLogin={() => setIsLoginModalOpen(true)}
             onOpenGAS={() => setIsGASModalOpen(true)}
+            onOpenScoreEdit={(tieMatchId) => handleOpenResultEntry(tieMatchId, '')}
           />
         )}
       </main>
@@ -229,7 +238,7 @@ export default function App() {
             <span>배드민턴 리그전 운영위원회</span>
           </div>
           <span className="hidden sm:inline text-white/20">|</span>
-          <span className="hidden sm:inline">Google Sheets 연동 지원</span>
+          <span className="hidden sm:inline">Firebase DB & Google Sheets 연동</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 bg-[#E2FF00] rounded-full animate-pulse shadow-[0_0_8px_#E2FF00]"></span>

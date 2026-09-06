@@ -100,7 +100,6 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
 
       // Also do an initial full sync of existing data
       const matches = StorageService.getMatches();
-      const reflections = StorageService.getReflections();
 
       let matchCount = 0;
       for (const m of matches) {
@@ -110,13 +109,9 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
         }
       }
 
-      for (const r of reflections) {
-        await GoogleSheetsService.appendStudentReflection(r);
-      }
-
       setStatusMessage({
         type: 'success',
-        text: `구글 스프레드시트가 연결되었습니다! (완료 경기 ${matchCount}건, 학생 소감문 ${reflections.length}건 동기화 완료)`
+        text: `구글 스프레드시트가 연결되었습니다! (완료 경기 ${matchCount}건 구글 시트 동기화 완료)`
       });
     } catch (err: any) {
       setStatusMessage({
@@ -153,7 +148,7 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-white/50">
-                경기 결과 입력 및 학생 소감/기록 작성 시 구글 스프레드시트에 실시간 자동 기록됩니다.
+                경기 결과 입력 및 실시간 점수판 운영 시 구글 스프레드시트에 실시간 자동 기록됩니다.
               </p>
             </div>
           </div>

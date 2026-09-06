@@ -1,58 +1,145 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Lock, 
-  Sparkles, 
   Users, 
   Calendar, 
   FileSpreadsheet, 
-  Award, 
-  Download, 
-  Copy, 
   CheckCircle2, 
   RefreshCw, 
-  Edit3, 
-  Plus, 
   Trash2,
-  Filter,
-  Check
+  Check,
+  UserCheck,
+  Database,
+  ExternalLink,
+  Copy,
+  AlertCircle,
+  Plus,
+  Send
 } from 'lucide-react';
-import { GradeLevel, TieMatch, UserProfile, StudentRecordDraft } from '../types';
+import { GradeLevel, TieMatch, UserProfile, isAdminRole } from '../types';
 import { StorageService } from '../services/storageService';
+import { FirebaseService, CaptainAssignment } from '../services/firebaseService';
 import { GASService } from '../services/gasService';
-import { StudentEvaluationService } from '../services/studentEvaluationService';
+import { LEAGUE_ROUNDS } from '../data/initialData';
 
 interface TeacherDashboardProps {
   currentUser: UserProfile | null;
   onOpenLogin: () => void;
   onOpenGAS: () => void;
+  onOpenScoreEdit?: (tieMatchId: string) => void;
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   currentUser,
   onOpenLogin,
-  onOpenGAS
+  onOpenGAS,
+  onOpenScoreEdit
 }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(currentUser?.role === 'TEACHER');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(isAdminRole(currentUser?.role));
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
 
-  // Dashboard Sub-tabs
-  const [activeSubTab, setActiveSubTab] = useState<'RECORD_GEN' | 'SCHEDULE_MGR' | 'SPORTS_REPS' | 'DATA_SYNC'>('RECORD_GEN');
+  // Sub-tabs: 3 core teacher requirements
+  const [activeSubTab, setActiveSubTab] = useState<'CAPTAIN_ROLES' | 'MATCH_MGR' | 'GAS_SETTINGS'>('CAPTAIN_ROLES');
 
-  // Record Generator States
-  const [recordGrade, setRecordGrade] = useState<GradeLevel>(1);
-  const [recordClass, setRecordClass] = useState<number>(1);
-  const [emphasis, setEmphasis] = useState<'BALANCED' | 'LEADERSHIP' | 'SKILL' | 'SPORTSMANSHIP' | 'GROWTH'>('BALANCED');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [syncStatus, setSyncStatus] = useState<string>('');
+  // Subtab 1: Captain Role Management
+  const [targetGrade, setTargetGrade] = useState<GradeLevel>(1);
+  const [targetClass, setTargetClass] = useState<number>(1);
+  const [targetStudentNum, setTargetStudentNum] = useState<number>(1);
+  const [targetName, setTargetName] = useState<string>('');
+  const [targetIdentifier, setTargetIdentifier] = useState<string>('');
+  const [targetEmail, setTargetEmail] = useState<string>('');
+  const [captainsList, setCaptainsList] = useState<CaptainAssignment[]>([]);
+  const [isAssigningCaptain, setIsAssigningCaptain] = useState<boolean>(false);
+  const [captainMsg, setCaptainMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Sports Reps States
-  const [sportsReps, setSportsReps] = useState<Record<string, string>>(StorageService.getSportsRepresentatives());
-
-  // Matches State
+  // Subtab 2: Match Results Management
   const [matches, setMatches] = useState<TieMatch[]>(StorageService.getMatches());
+  const [selectedRoundFilter, setSelectedRoundFilter] = useState<number>(0);
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<number>(0);
+
+  // Subtab 3: GAS Settings
+  const [gasUrl, setGasUrl] = useState<string>('');
+  const [isSavingGas, setIsSavingGas] = useState<boolean>(false);
+  const [gasTestMsg, setGasTestMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
+
+  // Load students for current class
+  const classStudents = StorageService.getStudents(targetGrade, targetClass);
+
+  // Sync targetName when studentNum changes
+  useEffect(() => {
+    const student = classStudents.find(s => s.studentNum === targetStudentNum);
+    if (student) {
+      setTargetName(student.name);
+      if (!targetIdentifier) {
+        setTargetIdentifier(`uid_${targetGrade}-${targetClass}-${student.studentNum}`);
+      }
+    }
+  }, [targetGrade, targetClass, targetStudentNum]);
+
+  // Load initial data
+  useEffect(() => {
+    loadCaptains();
+    loadGasUrl();
+    loadMatchesFromFirestore();
+  }, []);
+
+  const loadCaptains = async () => {
+    try {
+      const list = await FirebaseService.getCaptains();
+      if (list.length > 0) {
+        setCaptainsList(list);
+      } else {
+        // Fallback default list
+        const reps = StorageService.getSportsRepresentatives();
+        const fallback: CaptainAssignment[] = Object.entries(reps).map(([k, v]) => {
+          const [g, c] = k.split('-').map(Number);
+          return {
+            id: `rep_${k}`,
+            grade: (g || 1) as GradeLevel,
+            classNum: c || 1,
+            name: v,
+            role: 'captain',
+            assignedAt: new Date().toISOString()
+          };
+        });
+        setCaptainsList(fallback);
+      }
+    } catch (e) {
+      console.warn('Error loading captains:', e);
+    }
+  };
+
+  const loadGasUrl = async () => {
+    try {
+      const url = await FirebaseService.getGasUrl();
+      if (url) {
+        setGasUrl(url);
+      } else {
+        const localConfig = StorageService.getGASConfig();
+        setGasUrl(localConfig.webAppUrl || '');
+      }
+    } catch (e) {
+      console.warn('Error loading gas url:', e);
+    }
+  };
+
+  const loadMatchesFromFirestore = async () => {
+    try {
+      const firestoreMatches = await FirebaseService.getMatches();
+      if (firestoreMatches.length > 0) {
+        setMatches(firestoreMatches);
+        StorageService.saveMatches(firestoreMatches);
+      } else {
+        setMatches(StorageService.getMatches());
+      }
+    } catch (e) {
+      console.warn('Error loading matches from firestore:', e);
+      setMatches(StorageService.getMatches());
+    }
+  };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,35 +147,178 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       setIsAuthenticated(true);
       setAuthError('');
     } else {
-      setAuthError('체육교사 접근 비밀번호가 일치하지 않습니다.');
+      setAuthError('체육교사 접근 비밀번호(4161)가 일치하지 않습니다.');
     }
   };
 
+  // Grant Captain Role
+  const handleGrantCaptain = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetName.trim()) {
+      setCaptainMsg({ type: 'error', text: '학생 성명을 입력하거나 명단에서 선택해주세요.' });
+      return;
+    }
+
+    setIsAssigningCaptain(true);
+    setCaptainMsg(null);
+
+    try {
+      const res = await FirebaseService.grantCaptainRole({
+        identifier: targetIdentifier || `${targetGrade}-${targetClass}-${targetStudentNum}`,
+        grade: targetGrade,
+        classNum: targetClass,
+        studentNum: targetStudentNum,
+        name: targetName.trim(),
+        email: targetEmail.trim()
+      });
+
+      // Also update local storage fallback
+      StorageService.setSportsRepresentative(targetGrade, targetClass, targetName.trim());
+
+      setCaptainMsg({
+        type: res.success ? 'success' : 'error',
+        text: res.message
+      });
+
+      await loadCaptains();
+    } catch (err: any) {
+      setCaptainMsg({
+        type: 'error',
+        text: `권한 부여 실패: ${err.message}`
+      });
+    } finally {
+      setIsAssigningCaptain(false);
+    }
+  };
+
+  // Revoke Captain Role
+  const handleRevokeCaptain = async (docId: string, grade: GradeLevel, classNum: number) => {
+    if (!confirm('정말 해당 학생의 반장/체육부장(captain) 권한을 해제하시겠습니까?')) return;
+    try {
+      await FirebaseService.revokeCaptainRole(docId);
+      StorageService.setSportsRepresentative(grade, classNum, '미지정');
+      await loadCaptains();
+      setCaptainMsg({ type: 'success', text: '반장/체육부장 권한이 해제되었습니다.' });
+    } catch (err: any) {
+      setCaptainMsg({ type: 'error', text: `권한 해제 실패: ${err.message}` });
+    }
+  };
+
+  // Save GAS Webhook URL
+  const handleSaveGasUrl = async () => {
+    if (!gasUrl.trim().startsWith('http')) {
+      setGasTestMsg({ type: 'error', text: '올바른 https:// URL 형식이어야 합니다.' });
+      return;
+    }
+
+    setIsSavingGas(true);
+    setGasTestMsg(null);
+
+    try {
+      // 1. Save to Firebase settings/gasUrl
+      await FirebaseService.saveGasUrl(gasUrl.trim(), currentUser?.name || '체육교사');
+
+      // 2. Save to local config
+      const config = StorageService.getGASConfig();
+      config.webAppUrl = gasUrl.trim();
+      config.status = 'CONNECTED';
+      StorageService.saveGASConfig(config);
+
+      setGasTestMsg({
+        type: 'success',
+        text: 'Google Apps Script URL이 Firebase settings/gasUrl에 성공적으로 저장되었습니다!'
+      });
+    } catch (err: any) {
+      setGasTestMsg({
+        type: 'error',
+        text: `저장 실패: ${err.message}`
+      });
+    } finally {
+      setIsSavingGas(false);
+    }
+  };
+
+  // Test GAS Connection
+  const handleTestGasConnection = async () => {
+    if (!gasUrl.trim()) {
+      setGasTestMsg({ type: 'error', text: 'URL을 먼저 입력해주세요.' });
+      return;
+    }
+    setGasTestMsg(null);
+    const res = await GASService.testConnection(gasUrl.trim());
+    setGasTestMsg({
+      type: res.success ? 'success' : 'error',
+      text: res.message
+    });
+  };
+
+  // Copy Script Code
+  const handleCopyScript = () => {
+    const code = GASService.getScriptCode();
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  // Reset Match Result
+  const handleResetMatch = async (matchId: string) => {
+    if (!confirm('이 경기의 결과를 초기화하시겠습니까? (세트 점수 및 승패가 초기 상태로 되돌아갑니다)')) return;
+    
+    StorageService.deleteTieMatchResult(matchId);
+    const updated = StorageService.getMatches();
+    setMatches(updated);
+
+    const matchObj = updated.find(m => m.id === matchId);
+    if (matchObj) {
+      await FirebaseService.saveMatch(matchObj, '체육교사(초기화)');
+    }
+  };
+
+  // Full Sync Matches to Firebase
+  const handleSyncAllMatchesToFirebase = async () => {
+    try {
+      const currentList = StorageService.getMatches();
+      for (const m of currentList) {
+        await FirebaseService.saveMatch(m, '체육교사(일괄동기화)');
+      }
+      alert('모든 경기 데이터가 Firebase matches 컬렉션에 동기화되었습니다.');
+    } catch (e: any) {
+      alert('동기화 실패: ' + e.message);
+    }
+  };
+
+  // Filter matches
+  const filteredMatches = matches.filter(m => {
+    if (selectedRoundFilter > 0 && m.roundId !== selectedRoundFilter) return false;
+    if (selectedGradeFilter > 0 && m.grade !== selectedGradeFilter && m.teamAGrade !== selectedGradeFilter) return false;
+    return true;
+  });
+
   // If not authenticated as teacher yet
-  if (!isAuthenticated && currentUser?.role !== 'TEACHER') {
+  if (!isAuthenticated && !isAdminRole(currentUser?.role)) {
     return (
-      <div className="max-w-md mx-auto my-12 p-8 bg-[#12192B] border border-white/10 rounded-2xl shadow-2xl space-y-6 text-center">
-        <div className="w-14 h-14 mx-auto rounded-xl bg-[#E2FF00]/10 border border-[#E2FF00]/30 flex items-center justify-center text-[#E2FF00]">
+      <div className="max-w-md mx-auto my-12 p-8 bg-[#12192B] border border-white/10 rounded-2xl shadow-2xl space-y-6 text-center animate-in fade-in duration-300">
+        <div className="w-14 h-14 mx-auto rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
           <Lock className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">체육교사 전용 대시보드</h2>
+          <h2 className="text-xl font-bold text-white tracking-tight">체육교사(Admin) 관리자 인증</h2>
           <p className="text-xs text-white/50 mt-1.5 leading-relaxed">
-            대진표 설정, 실시간 기록 감독, 체육부장 관리 및 <strong className="text-[#E2FF00]">생기부 세특 일괄 자동 생성</strong>은 교사 인증이 필요합니다.
+            전체 경기 결과 관리, 구글 시트(GAS) 연동 URL 설정 및 <strong className="text-amber-400">반장/체육부장 권한 관리</strong>는 체육교사 인증이 필요합니다.
           </p>
         </div>
 
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div className="text-left">
             <label className="block text-xs font-semibold text-white/70 mb-1.5 font-mono">
-              TEACHER ACCESS CODE
+              ADMIN ACCESS CODE (기본: 4161)
             </label>
             <input
               type="password"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               placeholder="비밀번호 입력"
-              className="w-full px-4 py-3 rounded-xl bg-[#0A0F1D] border border-white/10 text-center text-white text-lg font-mono font-bold tracking-widest placeholder-white/20 focus:outline-none focus:border-[#E2FF00]"
+              className="w-full px-4 py-3 rounded-xl bg-[#0A0F1D] border border-white/10 text-center text-white text-lg font-mono font-bold tracking-widest placeholder-white/20 focus:outline-none focus:border-amber-400"
             />
           </div>
 
@@ -98,364 +328,371 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl text-xs sm:text-sm font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)] transition"
+            className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition shadow-[0_0_15px_rgba(245,158,11,0.3)]"
           >
-            교사 대시보드 인증 로그인
+            관리자 대시보드 진입
           </button>
         </form>
       </div>
     );
   }
 
-  // Get current class students for record generation
-  const currentStudents = StorageService.getStudents(recordGrade, recordClass);
-  const studentReports: StudentRecordDraft[] = currentStudents.map(student => {
-    return StudentEvaluationService.generateStudentReport({
-      studentName: student.name,
-      grade: recordGrade,
-      classNum: recordClass,
-      studentNum: student.studentNum,
-      emphasis
-    });
-  });
-
-  const handleCopySingle = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const handleExportCSV = () => {
-    const headers = ['학년', '반', '번호', '이름', '출전경기수', '승수', '승률(%)', '작성소감문수', '교과세특문구', '행동특성및종합의견'];
-    const rows = studentReports.map(r => [
-      `${r.grade}학년`,
-      `${r.classNum}반`,
-      `${r.studentNum}번`,
-      r.studentName,
-      r.matchesPlayed,
-      r.wins,
-      `${r.winRate}%`,
-      r.reflectionsCount,
-      `"${r.generatedRecord.replace(/"/g, '""')}"`,
-      `"${r.generatedRecordBehavior.replace(/"/g, '""')}"`
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `신안해양과학고_${recordGrade}학년_${recordClass}반_배드민턴_생기부_일괄생성.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleUpdateSportsRep = (grade: GradeLevel, classNum: number, name: string) => {
-    const key = `${grade}-${classNum}`;
-    const next = { ...sportsReps, [key]: name };
-    setSportsReps(next);
-    StorageService.saveSportsRepresentatives(next);
-  };
-
-  const handleTriggerGASFullSync = async () => {
-    setIsSyncing(true);
-    setSyncStatus('구글 시트로 데이터를 전송 중입니다...');
-    const result = await GASService.syncAll();
-    setIsSyncing(false);
-    setSyncStatus(result.message);
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in duration-300">
       
-      {/* Teacher Master Banner */}
-      <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#E2FF00]/10 border border-[#E2FF00]/30 text-[#E2FF00] text-xs font-mono font-bold mb-2">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>TEACHER MASTER CONTROL ACTIVE</span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            체육교사 & 학생자치회 <span className="text-[#E2FF00]">통합 운영 대시보드</span>
-          </h2>
-          <p className="text-xs text-white/50 mt-1">
-            배드민턴 리그전 대진표 조정, 출전 명단 관리 및 <strong className="text-[#E2FF00]">학교생활기록부(세특) 일괄 추출</strong>이 가능합니다.
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenGAS}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-[#0A0F1D] hover:bg-white/5 text-white border border-white/10 transition flex items-center gap-2 font-mono"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-[#E2FF00]" />
-            <span>GAS SPREADSHEET SYNC</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Sub Navigation Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-white/10">
-        {[
-          { id: 'RECORD_GEN', label: '생기부(세특) 자동생성기', icon: Sparkles },
-          { id: 'SPORTS_REPS', label: '학급별 체육부장 지정', icon: Users },
-          { id: 'SCHEDULE_MGR', label: '대진표 & 시간표 설정', icon: Calendar },
-          { id: 'DATA_SYNC', label: '구글 시트 연동 & 백업', icon: RefreshCw }
-        ].map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition ${
-                isActive
-                  ? 'bg-[#E2FF00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)]'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* TAB 1: Student Record (생기부) Generator */}
-      {activeSubTab === 'RECORD_GEN' && (
-        <div className="space-y-6">
-          
-          {/* Filter & Export Bar */}
-          <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 shadow-lg space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Grade select */}
-                <select
-                  value={recordGrade}
-                  onChange={(e) => setRecordGrade(Number(e.target.value) as GradeLevel)}
-                  className="px-3 py-2 rounded-xl bg-[#0A0F1D] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
-                >
-                  <option value={1}>1학년</option>
-                  <option value={2}>2학년</option>
-                </select>
-
-                {/* Class select */}
-                <select
-                  value={recordClass}
-                  onChange={(e) => setRecordClass(Number(e.target.value))}
-                  className="px-3 py-2 rounded-xl bg-[#0A0F1D] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
-                >
-                  <option value={1}>1반 (21명)</option>
-                  <option value={2}>2반 (21명)</option>
-                </select>
-
-                {/* Emphasis tone */}
-                <select
-                  value={emphasis}
-                  onChange={(e) => setEmphasis(e.target.value as any)}
-                  className="px-3 py-2 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/40 text-[#E2FF00] font-medium text-xs focus:outline-none"
-                >
-                  <option value="BALANCED">종합 균형형 (기본)</option>
-                  <option value="LEADERSHIP">리더십 및 팀워크 강조</option>
-                  <option value="SKILL">실기 기량(스매시/네트) 강조</option>
-                  <option value="SPORTSMANSHIP">스포츠맨십 및 배려 강조</option>
-                  <option value="GROWTH">자기성찰 및 성장 중심</option>
-                </select>
-              </div>
-
-              {/* Bulk Export Button */}
-              <button
-                onClick={handleExportCSV}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)] transition"
-              >
-                <Download className="w-4 h-4 text-black" />
-                <span>{recordGrade}학년 {recordClass}반 생기부 CSV 다운로드</span>
-              </button>
+      {/* Header Banner */}
+      <div className="p-6 sm:p-8 rounded-2xl bg-[#12192B] border border-white/10 shadow-xl relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <ShieldCheck className="w-6 h-6" />
             </div>
-
-            <div className="text-xs text-white/50 bg-[#0A0F1D] p-3 rounded-xl border border-white/5">
-              💡 <strong>생활기록부 알고리즘 안내:</strong> 학생의 실제 리그 출전 기록, 승패 전적, 종목별 활약, 작성한 성찰 일기의 향상 기술 키워드 및 스포츠맨십 평가를 바탕으로 교육부 NEIS 기재 표준에 맞춘 세특 문구가 실시간 조합됩니다.
-            </div>
-          </div>
-
-          {/* Student Reports List Cards */}
-          <div className="grid grid-cols-1 gap-4">
-            {studentReports.map((report) => (
-              <div
-                key={report.studentNum}
-                className="p-5 rounded-2xl bg-[#12192B] border border-white/10 hover:border-white/20 transition shadow-lg space-y-3"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 rounded-lg bg-[#E2FF00]/10 border border-[#E2FF00]/30 flex items-center justify-center text-[#E2FF00] font-mono font-bold text-xs">
-                      0{report.studentNum}
-                    </span>
-                    <div>
-                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                        <span>{report.studentName} 학생</span>
-                        <span className="text-[10px] text-white/40 font-mono">({report.grade}학년 {report.classNum}반 {report.studentNum}번)</span>
-                      </h4>
-                      <div className="text-[11px] text-white/50 flex items-center gap-3 mt-0.5 font-mono">
-                        <span>전적: <strong className="text-white">{report.matchesPlayed}전 {report.wins}승</strong></span>
-                        <span>승률: <strong className="text-[#E2FF00]">{report.winRate}%</strong></span>
-                        <span>소감문: <strong className="text-blue-400">{report.reflectionsCount}건</strong></span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 font-mono text-xs">
-                    <button
-                      onClick={() => handleCopySingle(report.generatedRecord, `setuk-${report.studentNum}`)}
-                      className="px-3 py-1.5 rounded-lg font-medium bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition flex items-center gap-1.5"
-                    >
-                      {copiedId === `setuk-${report.studentNum}` ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-[#E2FF00]" />
-                          <span className="text-[#E2FF00]">세특 복사완료</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>세특 문구 복사</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => handleCopySingle(report.generatedRecordBehavior, `behavior-${report.studentNum}`)}
-                      className="px-3 py-1.5 rounded-lg font-medium bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition flex items-center gap-1.5"
-                    >
-                      {copiedId === `behavior-${report.studentNum}` ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-[#E2FF00]" />
-                          <span className="text-[#E2FF00]">행특 복사완료</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>행특 문구 복사</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Generated Subject Record (세특) */}
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-[#E2FF00] block font-mono">[교과 세부능력 및 특기사항]</span>
-                  <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/5 text-xs text-white/80 leading-relaxed font-sans">
-                    {report.generatedRecord}
-                  </div>
-                </div>
-
-                {/* Generated Behavior Record (행특) */}
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-blue-400 block font-mono">[행동특성 및 종합의견 참고문구]</span>
-                  <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/5 text-xs text-white/70 leading-relaxed font-sans">
-                    {report.generatedRecordBehavior}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-        </div>
-      )}
-
-      {/* TAB 2: Sports Reps Assignment */}
-      {activeSubTab === 'SPORTS_REPS' && (
-        <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 shadow-lg space-y-6">
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#E2FF00]" />
-              <span>각 반 체육부장 / 반장 관리</span>
-            </h3>
-            <p className="text-xs text-white/50 mt-1">
-              지정된 체육부장은 로그인 시 자동으로 출전 명단 작성 및 수정 권한이 부여됩니다.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {['1-1', '1-2', '2-1', '2-2'].map(key => {
-              const [g, c] = key.split('-');
-              const grade = Number(g) as GradeLevel;
-              const classNum = Number(c);
-              const students = StorageService.getStudents(grade, classNum);
-              const currentRep = sportsReps[key] || '';
-
-              return (
-                <div key={key} className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-2">
-                  <div className="text-xs font-bold text-white flex items-center justify-between">
-                    <span>{grade}학년 {classNum}반 체육부장</span>
-                    <span className="text-[#E2FF00] font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#E2FF00]/15">ACTIVE</span>
-                  </div>
-
-                  <select
-                    value={currentRep}
-                    onChange={(e) => handleUpdateSportsRep(grade, classNum, e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#12192B] border border-white/10 text-white font-medium text-xs focus:outline-none focus:border-[#E2FF00]"
-                  >
-                    <option value="">-- 체육부장 학생 선택 --</option>
-                    {students.map(s => (
-                      <option key={s.studentNum} value={s.name}>
-                        {s.studentNum}번 {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: Schedule & Timetable Manager */}
-      {activeSubTab === 'SCHEDULE_MGR' && (
-        <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 shadow-lg space-y-6">
-          <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#E2FF00]" />
-                <span>대진표 및 코트 배정 현황</span>
-              </h3>
-              <p className="text-xs text-white/50 mt-1">
-                6개 라운드의 배정 코트(1·2코트: Match 1, 3·4코트: Match 2) 및 진행 상태를 확인할 수 있습니다.
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  TEACHER ADMIN
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  FIREBASE FIRESTORE
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                체육교사(Admin) 통합 운영 관리자 대시보드
+              </h2>
+              <p className="text-xs text-white/50 mt-1 max-w-2xl leading-relaxed">
+                반장/체육부장 권한 부여(captain), 전체 경기 결과 관리(수정/삭제/초기화), 그리고 구글 시트(GAS) Webhook URL 설정을 총괄합니다.
               </p>
             </div>
           </div>
 
-          <div className="space-y-4">
-            {matches.map((tie) => {
-              const teamAGrade = tie.teamAGrade || tie.grade;
-              const teamBGrade = tie.teamBGrade || tie.grade;
-              const matchNum = tie.id.endsWith('M1') ? 1 : 2;
+          <div className="flex items-center gap-2.5 self-start md:self-auto">
+            <button
+              onClick={handleSyncAllMatchesToFirebase}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-white border border-white/10 flex items-center gap-1.5 transition"
+            >
+              <Database className="w-3.5 h-3.5 text-amber-400" />
+              <span>Firebase 일괄 백업</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
-              return (
-                <div key={tie.id} className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 font-bold text-white">
-                      <span className="px-2 py-0.5 rounded bg-[#E2FF00]/15 text-[#E2FF00] font-mono">
-                        MATCH {matchNum} ({matchNum === 1 ? '제1·2코트' : '제3·4코트'})
-                      </span>
-                      <span>
-                        제{tie.roundId}라운드 ({tie.date}) • {teamAGrade}학년 {tie.teamAClass}반 vs {teamBGrade}학년 {tie.teamBClass}반
-                      </span>
-                    </div>
-                    <span className="text-white/50 font-mono">SCORE: {tie.teamAWins} - {tie.teamBWins}</span>
-                  </div>
+      {/* Subtab Navigation Bar */}
+      <div className="flex items-center gap-2 p-1.5 bg-[#12192B] border border-white/10 rounded-2xl overflow-x-auto">
+        <button
+          onClick={() => setActiveSubTab('CAPTAIN_ROLES')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            activeSubTab === 'CAPTAIN_ROLES'
+              ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>반장/체육부장 권한 관리 (지정/해제)</span>
+        </button>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
-                    {tie.subMatches.map(sm => (
-                      <div key={sm.id} className="p-2.5 rounded-lg bg-[#12192B] border border-white/5 space-y-1">
-                        <div className="font-bold text-[#E2FF00] text-[11px]">{sm.category}</div>
-                        <div className="text-[10px] text-white/40 font-mono">{sm.court}</div>
-                        <div className="text-[10px] font-bold text-white/90">
-                          {sm.status === 'COMPLETED' ? `완료 (${sm.winnerTeam === 'A' ? `${teamAGrade}-${tie.teamAClass}` : `${teamBGrade}-${tie.teamBClass}`} 승)` : '예정'}
+        <button
+          onClick={() => setActiveSubTab('MATCH_MGR')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            activeSubTab === 'MATCH_MGR'
+              ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          <span>경기 결과 관리 (수정/삭제/초기화)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('GAS_SETTINGS')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            activeSubTab === 'GAS_SETTINGS'
+              ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          <span>구글 시트(GAS) 연동 URL 설정</span>
+        </button>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SUBTAB 1: CAPTAIN ROLES (반장/체육부장 권한 관리) */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'CAPTAIN_ROLES' && (
+        <div className="space-y-6">
+          {captainMsg && (
+            <div
+              className={`p-4 rounded-xl border text-xs flex items-center gap-2.5 font-medium ${
+                captainMsg.type === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}
+            >
+              {captainMsg.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              )}
+              <span>{captainMsg.text}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Form to Grant Captain Role */}
+            <form onSubmit={handleGrantCaptain} className="p-6 rounded-2xl bg-[#12192B] border border-white/10 space-y-4 lg:col-span-1">
+              <div className="flex items-center gap-2 pb-3 border-b border-white/10">
+                <Plus className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-bold text-white font-mono">
+                  명단 작성 권한(captain) 부여
+                </h3>
+              </div>
+
+              {/* Grade */}
+              <div>
+                <label className="block text-xs text-white/60 mb-1.5 font-mono">학년 선택</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2].map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setTargetGrade(g as GradeLevel)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition ${
+                        targetGrade === g
+                          ? 'bg-amber-500 border-amber-500 text-black'
+                          : 'bg-[#0A0F1D] border-white/10 text-white/70'
+                      }`}
+                    >
+                      {g}학년
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Class */}
+              <div>
+                <label className="block text-xs text-white/60 mb-1.5 font-mono">반 선택</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2].map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setTargetClass(c)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition ${
+                        targetClass === c
+                          ? 'bg-amber-500 border-amber-500 text-black'
+                          : 'bg-[#0A0F1D] border-white/10 text-white/70'
+                      }`}
+                    >
+                      {c}반
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Student Num and Name selection from Class Roster */}
+              <div>
+                <label className="block text-xs text-white/60 mb-1.5 font-mono">학생 명단에서 지정</label>
+                <select
+                  value={targetStudentNum}
+                  onChange={(e) => setTargetStudentNum(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-amber-400"
+                >
+                  {classStudents.map(s => (
+                    <option key={s.studentNum} value={s.studentNum}>
+                      {s.studentNum}번 {s.name} ({s.gender === 'M' ? '남' : '여'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Target Name (Custom or Synced) */}
+              <div>
+                <label className="block text-xs text-white/60 mb-1.5 font-mono">지정 학생 성명</label>
+                <input
+                  type="text"
+                  value={targetName}
+                  onChange={(e) => setTargetName(e.target.value)}
+                  placeholder="학생 이름"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              {/* Target UID or Email */}
+              <div>
+                <label className="block text-xs text-white/60 mb-1.5 font-mono">UID / 이메일 (선택)</label>
+                <input
+                  type="text"
+                  value={targetIdentifier}
+                  onChange={(e) => setTargetIdentifier(e.target.value)}
+                  placeholder="예: captain@school.kr 또는 UID"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isAssigningCaptain}
+                className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(245,158,11,0.3)] transition disabled:opacity-50"
+              >
+                {isAssigningCaptain ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Firebase 저장 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>권한 부여 (users 컬렉션 role: 'captain' 저장)</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* List of Current Captains */}
+            <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 space-y-4 lg:col-span-2">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-bold text-white font-mono">
+                    현재 지정된 반장 / 체육부장 목록
+                  </h3>
+                </div>
+                <button
+                  onClick={loadCaptains}
+                  className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {captainsList.map((c) => (
+                  <div key={c.id} className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold font-mono">
+                        {c.grade}-{c.classNum}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white">{c.name}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            role: 'captain'
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-white/40 font-mono mt-0.5">
+                          ID: {c.uid || c.id} {c.email ? `(${c.email})` : ''}
                         </div>
                       </div>
-                    ))}
+                    </div>
+
+                    <button
+                      onClick={() => handleRevokeCaptain(c.id, c.grade, c.classNum)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition self-end sm:self-auto"
+                    >
+                      권한 해제
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB 2: MATCH RESULTS MANAGEMENT (전체 경기 결과 관리) */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'MATCH_MGR' && (
+        <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-amber-400" />
+                전체 대진 경기 결과 관리 (수정 / 삭제 / 초기화)
+              </h3>
+              <p className="text-xs text-white/40 mt-1">
+                완료된 경기의 스코어를 재조정하거나, 잘못 입력된 경기 결과를 초기 상태로 리셋합니다.
+              </p>
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedRoundFilter}
+                onChange={(e) => setSelectedRoundFilter(Number(e.target.value))}
+                className="px-3 py-1.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400"
+              >
+                <option value={0}>전체 라운드 (1~6)</option>
+                {[1, 2, 3, 4, 5, 6].map(r => (
+                  <option key={r} value={r}>제{r}라운드</option>
+                ))}
+              </select>
+
+              <select
+                value={selectedGradeFilter}
+                onChange={(e) => setSelectedGradeFilter(Number(e.target.value))}
+                className="px-3 py-1.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400"
+              >
+                <option value={0}>전체 학년</option>
+                <option value={1}>1학년 경기</option>
+                <option value={2}>2학년 경기</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {filteredMatches.map(m => {
+              const completedCount = m.subMatches.filter(s => s.status === 'COMPLETED').length;
+              const isFinished = m.status === 'COMPLETED';
+
+              return (
+                <div key={m.id} className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-white/10 text-white/80">
+                        제{m.roundId}라운드
+                      </span>
+                      <span className="text-xs font-bold text-white">
+                        {m.teamAGrade || m.grade}학년 {m.teamAClass}반 VS {m.teamBGrade || m.grade}학년 {m.teamBClass}반
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                        isFinished 
+                          ? 'bg-emerald-500/20 text-emerald-400' 
+                          : 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {isFinished ? '경기 완료' : `진행중 (${completedCount}/5)`}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-white/50 mt-1.5 flex items-center gap-4 font-mono">
+                      <span>일자: {m.date}</span>
+                      <span>스코어: {m.teamAWins} : {m.teamBWins}</span>
+                      {m.winnerClass && <span className="text-amber-400 font-bold">승리: {m.winnerClass}반</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end md:self-auto">
+                    {onOpenScoreEdit && (
+                      <button
+                        onClick={() => onOpenScoreEdit(m.id)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition"
+                      >
+                        결과 수정/입력
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleResetMatch(m.id)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>초기화</span>
+                    </button>
                   </div>
                 </div>
               );
@@ -464,56 +701,89 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 4: Data Sync & Reset */}
-      {activeSubTab === 'DATA_SYNC' && (
-        <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 shadow-lg space-y-6">
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-[#E2FF00]" />
-              <span>데이터 연동 및 백업 관리</span>
-            </h3>
-            <p className="text-xs text-white/50 mt-1">
-              Google Apps Script(GAS)로 전체 경기 기록 및 소감문 데이터를 구글 스프레드시트에 일괄 백업합니다.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white">구글 스프레드시트 일괄 동기화</span>
-              <button
-                onClick={handleTriggerGASFullSync}
-                disabled={isSyncing}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)] disabled:opacity-50 transition flex items-center gap-2"
-              >
-                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>{isSyncing ? '동기화 중...' : '구글 시트 즉시 동기화'}</span>
-              </button>
-            </div>
-
-            {syncStatus && (
-              <div className="text-xs p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 font-mono">
-                {syncStatus}
-              </div>
-            )}
-          </div>
-
-          {/* Reset button */}
-          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-between">
-            <div>
-              <div className="text-xs font-bold text-rose-400">데이터 초기화 (공장 초기화)</div>
-              <div className="text-[11px] text-white/40">모든 경기 결과 및 소감문 데이터를 기본 상태로 리셋합니다.</div>
-            </div>
-            <button
-              onClick={() => {
-                if (window.confirm('정말 모든 데이터를 초기화하시겠습니까?')) {
-                  StorageService.resetToDefault();
-                  window.location.reload();
-                }
-              }}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition"
+      {/* ========================================================================= */}
+      {/* SUBTAB 3: GAS URL SETTINGS (구글 시트 연동 URL 설정) */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'GAS_SETTINGS' && (
+        <div className="space-y-6">
+          {gasTestMsg && (
+            <div
+              className={`p-4 rounded-xl border text-xs flex items-center gap-2.5 font-medium ${
+                gasTestMsg.type === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}
             >
-              초기화 실행
-            </button>
+              {gasTestMsg.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              )}
+              <span>{gasTestMsg.text}</span>
+            </div>
+          )}
+
+          <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 space-y-6">
+            <div>
+              <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                Google Apps Script (GAS) Webhook URL 등록
+              </h3>
+              <p className="text-xs text-white/50 mt-1 leading-relaxed">
+                학생자치회 또는 교사가 경기 결과를 입력할 때, Firebase 저장과 동시에 구글 스프레드시트로 실시간 전송(POST)되는 엔드포인트 URL입니다. (Firebase의 <code className="text-amber-400 font-mono">settings/gasUrl</code> 문서에 저장됨)
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-mono text-white/70">
+                WEB APP URL (https://script.google.com/macros/s/.../exec)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={gasUrl}
+                  onChange={(e) => setGasUrl(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="flex-1 px-4 py-3 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleTestGasConnection}
+                  className="px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold border border-white/10 transition"
+                >
+                  연결 테스트 (PING)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveGasUrl}
+                  disabled={isSavingGas}
+                  className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition shadow-[0_0_12px_rgba(245,158,11,0.3)] disabled:opacity-50"
+                >
+                  {isSavingGas ? '저장 중...' : 'URL 저장'}
+                </button>
+              </div>
+            </div>
+
+            {/* Script Code Helper */}
+            <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white font-mono">
+                  구글 스프레드시트용 Apps Script 소스코드 (Code.gs)
+                </span>
+                <button
+                  onClick={handleCopyScript}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-white border border-white/10 flex items-center gap-1.5 transition"
+                >
+                  {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode ? '복사 완료!' : '스크립트 복사'}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-white/40 leading-relaxed">
+                구글 시트의 [확장 프로그램] → [Apps Script]에 붙여넣고 [새 배포: 웹 앱(액세스: 모든 사용자)]으로 배포한 URL을 위에 등록하십시오.
+              </p>
+            </div>
           </div>
         </div>
       )}

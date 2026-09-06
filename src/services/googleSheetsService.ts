@@ -1,5 +1,5 @@
 import { getAccessToken } from './googleAuthService';
-import { SubMatch, TieMatch, StudentReflection } from '../types';
+import { SubMatch, TieMatch } from '../types';
 
 const STORAGE_KEY_SPREADSHEET_ID = 'sinan_badminton_spreadsheet_id_v1';
 
@@ -59,18 +59,12 @@ export class GoogleSheetsService {
       },
       body: JSON.stringify({
         properties: {
-          title: '신안해양과학고등학교 배드민턴 리그 경기결과 및 소감문'
+          title: '신안해양과학고등학교 배드민턴 리그 경기결과'
         },
         sheets: [
           {
             properties: {
               title: '경기결과',
-              gridProperties: { frozenRowCount: 1 }
-            }
-          },
-          {
-            properties: {
-              title: '학생소감문_기록',
               gridProperties: { frozenRowCount: 1 }
             }
           }
@@ -102,21 +96,10 @@ export class GoogleSheetsService {
       'A팀 출전선수', 'B팀 출전선수', '세트스코어', '승리팀', 'MVP선수', '스매시(A/B)', '심판/기록자'
     ];
 
-    const reflectionHeaders = [
-      '작성일시', '학년', '반', '번호', '성명', '라운드', '종목', '상대학급',
-      '참여역할', '자기평가(1~5)', '향상기술', '소감문 내용', '스포츠맨십준수'
-    ];
-
     await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/경기결과!A1:N1?valueInputOption=USER_ENTERED`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ values: [matchHeaders] })
-    });
-
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/학생소감문_기록!A1:M1?valueInputOption=USER_ENTERED`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values: [reflectionHeaders] })
     });
   }
 
@@ -183,57 +166,6 @@ export class GoogleSheetsService {
       success: true,
       spreadsheetUrl,
       message: `경기결과 (${rows.length}건)가 구글 스프레드시트에 성공적으로 자동 기록되었습니다.`
-    };
-  }
-
-  /**
-   * Appends single student reflection / diary to Google Sheets
-   */
-  static async appendStudentReflection(ref: StudentReflection): Promise<{ success: boolean; spreadsheetUrl: string; message: string }> {
-    const token = await getAccessToken();
-    if (!token) {
-      throw new Error('Google 로그인이 필요합니다.');
-    }
-
-    const spreadsheetId = await this.getOrCreateSpreadsheet();
-    const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    const categoryName = this.getCategoryKo(ref.category);
-
-    const row = [
-      ref.createdAt || now,
-      `${ref.grade}학년`,
-      `${ref.classNum}반`,
-      `${ref.studentNum}번`,
-      ref.studentName,
-      `제${ref.roundId}라운드`,
-      categoryName,
-      `${ref.opponentClass}반`,
-      ref.roleInMatch,
-      ref.rating,
-      (ref.improvedSkills || []).join(', '),
-      ref.content,
-      ref.sportsmanshipCheck ? '준수' : '미흡'
-    ];
-
-    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/학생소감문_기록!A:M:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ values: [row] })
-    });
-
-    if (!res.ok) {
-      const errJson = await res.json();
-      throw new Error(errJson.error?.message || '소감문 시트 기록 실패');
-    }
-
-    const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
-    return {
-      success: true,
-      spreadsheetUrl,
-      message: '학생 소감문이 구글 스프레드시트에 안전하게 자동 기록되었습니다.'
     };
   }
 }
