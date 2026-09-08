@@ -121,7 +121,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-center gap-2 bg-white/5 rounded-full px-3.5 py-1.5 border border-white/10">
                   <div className="w-2 h-2 rounded-full bg-[#E2FF00] shadow-[0_0_8px_#E2FF00] animate-pulse"></div>
                   <span className="text-xs font-semibold text-white/90 hidden md:inline">
-                    {currentUser.grade > 0 ? `${currentUser.grade}학년 ${currentUser.classNum}반 ${currentUser.name}` : currentUser.name}
+                    {currentUser.role === 'admin' 
+                      ? '체육교사' 
+                      : (currentUser.grade > 0 ? `${currentUser.grade}학년 ${currentUser.classNum}반 ${currentUser.name}` : currentUser.name)}
                   </span>
                   <div className="scale-90 origin-right">{getRoleBadge()}</div>
                 </div>

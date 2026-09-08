@@ -18,8 +18,8 @@ import {
   Send
 } from 'lucide-react';
 import { GradeLevel, TieMatch, UserProfile, isAdminRole } from '../types';
-import { StorageService } from '../services/storageService';
-import { FirebaseService, CaptainAssignment } from '../services/firebaseService';
+import { StorageService, AssignedRoleRecord } from '../services/storageService';
+import { FirebaseService, RoleAssignment } from '../services/firebaseService';
 import { GASService } from '../services/gasService';
 import { LEAGUE_ROUNDS } from '../data/initialData';
 
@@ -41,18 +41,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [authError, setAuthError] = useState<string>('');
 
   // Sub-tabs: 3 core teacher requirements
-  const [activeSubTab, setActiveSubTab] = useState<'CAPTAIN_ROLES' | 'MATCH_MGR' | 'GAS_SETTINGS'>('CAPTAIN_ROLES');
+  const [activeSubTab, setActiveSubTab] = useState<'ROLES_MGR' | 'MATCH_MGR' | 'GAS_SETTINGS'>('ROLES_MGR');
 
-  // Subtab 1: Captain Role Management
+  // Subtab 1: Student Role Management (Captain & Council)
   const [targetGrade, setTargetGrade] = useState<GradeLevel>(1);
   const [targetClass, setTargetClass] = useState<number>(1);
   const [targetStudentNum, setTargetStudentNum] = useState<number>(1);
-  const [targetName, setTargetName] = useState<string>('');
-  const [targetIdentifier, setTargetIdentifier] = useState<string>('');
-  const [targetEmail, setTargetEmail] = useState<string>('');
-  const [captainsList, setCaptainsList] = useState<CaptainAssignment[]>([]);
-  const [isAssigningCaptain, setIsAssigningCaptain] = useState<boolean>(false);
-  const [captainMsg, setCaptainMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [targetRole, setTargetRole] = useState<'captain' | 'council'>('council');
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'captain' | 'council'>('ALL');
+  const [assignedRolesList, setAssignedRolesList] = useState<RoleAssignment[]>([]);
+  const [isAssigningRole, setIsAssigningRole] = useState<boolean>(false);
+  const [roleMsg, setRoleMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Subtab 2: Match Results Management
   const [matches, setMatches] = useState<TieMatch[]>(StorageService.getMatches());
@@ -68,47 +67,83 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Load students for current class
   const classStudents = StorageService.getStudents(targetGrade, targetClass);
 
-  // Sync targetName when studentNum changes
+  // When class changes, ensure selected student is valid
   useEffect(() => {
-    const student = classStudents.find(s => s.studentNum === targetStudentNum);
-    if (student) {
-      setTargetName(student.name);
-      if (!targetIdentifier) {
-        setTargetIdentifier(`uid_${targetGrade}-${targetClass}-${student.studentNum}`);
-      }
+    if (classStudents.length > 0 && !classStudents.some(s => s.studentNum === targetStudentNum)) {
+      setTargetStudentNum(classStudents[0].studentNum);
     }
-  }, [targetGrade, targetClass, targetStudentNum]);
+  }, [targetGrade, targetClass]);
 
   // Load initial data
   useEffect(() => {
-    loadCaptains();
+    loadAssignedRoles();
     loadGasUrl();
     loadMatchesFromFirestore();
   }, []);
 
-  const loadCaptains = async () => {
+  const loadAssignedRoles = async () => {
     try {
-      const list = await FirebaseService.getCaptains();
-      if (list.length > 0) {
-        setCaptainsList(list);
+      const list = await FirebaseService.getAssignedRoles();
+      if (list && list.length > 0) {
+        setAssignedRolesList(list);
+        // Also sync local storage
+        const localList: AssignedRoleRecord[] = list.map(item => ({
+          id: item.id,
+          grade: item.grade,
+          classNum: item.classNum,
+          studentNum: item.studentNum,
+          name: item.name,
+          role: item.role,
+          assignedAt: item.assignedAt,
+          assignedBy: item.assignedBy
+        }));
+        StorageService.saveAssignedRoles(localList);
       } else {
-        // Fallback default list
-        const reps = StorageService.getSportsRepresentatives();
-        const fallback: CaptainAssignment[] = Object.entries(reps).map(([k, v]) => {
-          const [g, c] = k.split('-').map(Number);
-          return {
-            id: `rep_${k}`,
-            grade: (g || 1) as GradeLevel,
-            classNum: c || 1,
-            name: v,
-            role: 'captain',
-            assignedAt: new Date().toISOString()
-          };
-        });
-        setCaptainsList(fallback);
+        // Fallback to local storage
+        const localRoles = StorageService.getAssignedRoles();
+        if (localRoles.length > 0) {
+          setAssignedRolesList(localRoles.map(r => ({
+            id: r.id,
+            grade: r.grade,
+            classNum: r.classNum,
+            studentNum: r.studentNum,
+            name: r.name,
+            role: r.role,
+            assignedAt: r.assignedAt,
+            assignedBy: r.assignedBy
+          })));
+        } else {
+          // Default captain fallback
+          const reps = StorageService.getSportsRepresentatives();
+          const fallback: RoleAssignment[] = Object.entries(reps).map(([k, v]) => {
+            const [g, c] = k.split('-').map(Number);
+            return {
+              id: `rep_${k}`,
+              grade: (g || 1) as GradeLevel,
+              classNum: c || 1,
+              studentNum: 1,
+              name: v,
+              role: 'captain',
+              assignedAt: new Date().toISOString(),
+              assignedBy: '체육교사'
+            };
+          });
+          setAssignedRolesList(fallback);
+        }
       }
     } catch (e) {
-      console.warn('Error loading captains:', e);
+      console.warn('Error loading roles:', e);
+      const localRoles = StorageService.getAssignedRoles();
+      setAssignedRolesList(localRoles.map(r => ({
+        id: r.id,
+        grade: r.grade,
+        classNum: r.classNum,
+        studentNum: r.studentNum,
+        name: r.name,
+        role: r.role,
+        assignedAt: r.assignedAt,
+        assignedBy: r.assignedBy
+      })));
     }
   };
 
@@ -147,60 +182,71 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       setIsAuthenticated(true);
       setAuthError('');
     } else {
-      setAuthError('체육교사 접근 비밀번호(4161)가 일치하지 않습니다.');
+      setAuthError('체육교사 접근 비밀번호가 일치하지 않습니다.');
     }
   };
 
-  // Grant Captain Role
-  const handleGrantCaptain = async (e: React.FormEvent) => {
+  // Grant Role (Council or Captain) directly from selected student
+  const handleGrantRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetName.trim()) {
-      setCaptainMsg({ type: 'error', text: '학생 성명을 입력하거나 명단에서 선택해주세요.' });
+    const student = classStudents.find(s => s.studentNum === targetStudentNum);
+    if (!student) {
+      setRoleMsg({ type: 'error', text: '학생을 선택해주세요.' });
       return;
     }
 
-    setIsAssigningCaptain(true);
-    setCaptainMsg(null);
+    setIsAssigningRole(true);
+    setRoleMsg(null);
 
     try {
-      const res = await FirebaseService.grantCaptainRole({
-        identifier: targetIdentifier || `${targetGrade}-${targetClass}-${targetStudentNum}`,
+      const res = await FirebaseService.grantRole({
         grade: targetGrade,
         classNum: targetClass,
-        studentNum: targetStudentNum,
-        name: targetName.trim(),
-        email: targetEmail.trim()
+        studentNum: student.studentNum,
+        name: student.name,
+        role: targetRole
       });
 
-      // Also update local storage fallback
-      StorageService.setSportsRepresentative(targetGrade, targetClass, targetName.trim());
+      // Save to local storage as well
+      StorageService.setAssignedRole({
+        id: `${targetGrade}-${targetClass}-${student.studentNum}`,
+        grade: targetGrade,
+        classNum: targetClass,
+        studentNum: student.studentNum,
+        name: student.name,
+        role: targetRole,
+        assignedAt: new Date().toISOString(),
+        assignedBy: '체육교사'
+      });
 
-      setCaptainMsg({
+      setRoleMsg({
         type: res.success ? 'success' : 'error',
-        text: res.message
+        text: res.success 
+          ? `✓ ${targetGrade}학년 ${targetClass}반 ${student.studentNum}번 ${student.name} 학생에게 [${targetRole === 'council' ? '학생자치회' : '반장/체육부장'}] 권한이 정상 부여되었습니다!` 
+          : res.message
       });
 
-      await loadCaptains();
+      await loadAssignedRoles();
     } catch (err: any) {
-      setCaptainMsg({
+      setRoleMsg({
         type: 'error',
         text: `권한 부여 실패: ${err.message}`
       });
     } finally {
-      setIsAssigningCaptain(false);
+      setIsAssigningRole(false);
     }
   };
 
-  // Revoke Captain Role
-  const handleRevokeCaptain = async (docId: string, grade: GradeLevel, classNum: number) => {
-    if (!confirm('정말 해당 학생의 반장/체육부장(captain) 권한을 해제하시겠습니까?')) return;
+  // Revoke Role
+  const handleRevokeRole = async (docId: string, roleName: string, studentName: string) => {
+    if (!confirm(`정말 [${studentName}] 학생의 ${roleName === 'council' ? '학생자치회' : '반장/체육부장'} 권한을 해제하시겠습니까?`)) return;
     try {
-      await FirebaseService.revokeCaptainRole(docId);
-      StorageService.setSportsRepresentative(grade, classNum, '미지정');
-      await loadCaptains();
-      setCaptainMsg({ type: 'success', text: '반장/체육부장 권한이 해제되었습니다.' });
+      await FirebaseService.revokeRole(docId);
+      StorageService.removeAssignedRole(docId);
+      await loadAssignedRoles();
+      setRoleMsg({ type: 'success', text: `✓ ${studentName} 학생의 권한이 정상적으로 해제되었습니다.` });
     } catch (err: any) {
-      setCaptainMsg({ type: 'error', text: `권한 해제 실패: ${err.message}` });
+      setRoleMsg({ type: 'error', text: `권한 해제 실패: ${err.message}` });
     }
   };
 
@@ -311,7 +357,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div className="text-left">
             <label className="block text-xs font-semibold text-white/70 mb-1.5 font-mono">
-              ADMIN ACCESS CODE (기본: 4161)
+              ADMIN ACCESS CODE
             </label>
             <input
               type="password"
@@ -337,6 +383,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     );
   }
 
+  // Count by role
+  const councilCount = assignedRolesList.filter(r => r.role === 'council').length;
+  const captainCount = assignedRolesList.filter(r => r.role === 'captain').length;
+
+  const displayedRolesList = assignedRolesList.filter(r => {
+    if (roleFilter === 'ALL') return true;
+    return r.role === roleFilter;
+  });
+
+  const selectedStudentObj = classStudents.find(s => s.studentNum === targetStudentNum) || classStudents[0];
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       
@@ -359,10 +416,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                체육교사(Admin) 통합 운영 관리자 대시보드
+                체육교사 통합 운영 관리자 대시보드
               </h2>
               <p className="text-xs text-white/50 mt-1 max-w-2xl leading-relaxed">
-                반장/체육부장 권한 부여(captain), 전체 경기 결과 관리(수정/삭제/초기화), 그리고 구글 시트(GAS) Webhook URL 설정을 총괄합니다.
+                학생자치회(council) 및 반장/체육부장(captain) 권한 부여, 전체 경기 결과 관리(수정/삭제/초기화), 그리고 구글 시트(GAS) Webhook URL 설정을 총괄합니다.
               </p>
             </div>
           </div>
@@ -382,15 +439,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {/* Subtab Navigation Bar */}
       <div className="flex items-center gap-2 p-1.5 bg-[#12192B] border border-white/10 rounded-2xl overflow-x-auto">
         <button
-          onClick={() => setActiveSubTab('CAPTAIN_ROLES')}
+          onClick={() => setActiveSubTab('ROLES_MGR')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-            activeSubTab === 'CAPTAIN_ROLES'
+            activeSubTab === 'ROLES_MGR'
               ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.3)]'
               : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
           <UserCheck className="w-4 h-4" />
-          <span>반장/체육부장 권한 관리 (지정/해제)</span>
+          <span>학생 권한 관리 (학생자치회 & 반장/체육부장)</span>
         </button>
 
         <button
@@ -419,36 +476,68 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* SUBTAB 1: CAPTAIN ROLES (반장/체육부장 권한 관리) */}
+      {/* SUBTAB 1: ROLES MANAGEMENT (학생자치회 & 반장/체육부장 권한 관리) */}
       {/* ========================================================================= */}
-      {activeSubTab === 'CAPTAIN_ROLES' && (
+      {activeSubTab === 'ROLES_MGR' && (
         <div className="space-y-6">
-          {captainMsg && (
+          {roleMsg && (
             <div
               className={`p-4 rounded-xl border text-xs flex items-center gap-2.5 font-medium ${
-                captainMsg.type === 'success'
+                roleMsg.type === 'success'
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
                   : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
               }`}
             >
-              {captainMsg.type === 'success' ? (
+              {roleMsg.type === 'success' ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               ) : (
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
               )}
-              <span>{captainMsg.text}</span>
+              <span>{roleMsg.text}</span>
             </div>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* Form to Grant Captain Role */}
-            <form onSubmit={handleGrantCaptain} className="p-6 rounded-2xl bg-[#12192B] border border-white/10 space-y-4 lg:col-span-1">
+            {/* Form to Grant Role (Simplified: no manual Name or UID inputs) */}
+            <form onSubmit={handleGrantRole} className="p-6 rounded-2xl bg-[#12192B] border border-white/10 space-y-5 lg:col-span-1">
               <div className="flex items-center gap-2 pb-3 border-b border-white/10">
                 <Plus className="w-4 h-4 text-amber-400" />
                 <h3 className="text-sm font-bold text-white font-mono">
-                  명단 작성 권한(captain) 부여
+                  학생 권한 부여
                 </h3>
+              </div>
+
+              {/* Role Selection */}
+              <div>
+                <label className="block text-xs text-white/60 mb-1.5 font-mono">부여할 권한 (Role)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTargetRole('council')}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition flex flex-col items-center gap-1 ${
+                      targetRole === 'council'
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-[0_0_10px_rgba(99,102,241,0.4)]'
+                        : 'bg-[#0A0F1D] border-white/10 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <span>학생자치회</span>
+                    <span className="text-[10px] font-normal opacity-80">경기결과 입력</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTargetRole('captain')}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition flex flex-col items-center gap-1 ${
+                      targetRole === 'captain'
+                        ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                        : 'bg-[#0A0F1D] border-white/10 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <span>반장 / 체육부장</span>
+                    <span className="text-[10px] font-normal opacity-80">출전명단 작성</span>
+                  </button>
+                </div>
               </div>
 
               {/* Grade */}
@@ -463,7 +552,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       className={`py-2 rounded-xl text-xs font-bold border transition ${
                         targetGrade === g
                           ? 'bg-amber-500 border-amber-500 text-black'
-                          : 'bg-[#0A0F1D] border-white/10 text-white/70'
+                          : 'bg-[#0A0F1D] border-white/10 text-white/70 hover:text-white'
                       }`}
                     >
                       {g}학년
@@ -484,7 +573,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       className={`py-2 rounded-xl text-xs font-bold border transition ${
                         targetClass === c
                           ? 'bg-amber-500 border-amber-500 text-black'
-                          : 'bg-[#0A0F1D] border-white/10 text-white/70'
+                          : 'bg-[#0A0F1D] border-white/10 text-white/70 hover:text-white'
                       }`}
                     >
                       {c}반
@@ -495,7 +584,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
               {/* Student Num and Name selection from Class Roster */}
               <div>
-                <label className="block text-xs text-white/60 mb-1.5 font-mono">학생 명단에서 지정</label>
+                <label className="block text-xs text-white/60 mb-1.5 font-mono">지정할 학생 선택</label>
                 <select
                   value={targetStudentNum}
                   onChange={(e) => setTargetStudentNum(Number(e.target.value))}
@@ -509,95 +598,146 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </select>
               </div>
 
-              {/* Target Name (Custom or Synced) */}
-              <div>
-                <label className="block text-xs text-white/60 mb-1.5 font-mono">지정 학생 성명</label>
-                <input
-                  type="text"
-                  value={targetName}
-                  onChange={(e) => setTargetName(e.target.value)}
-                  placeholder="학생 이름"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              {/* Target UID or Email */}
-              <div>
-                <label className="block text-xs text-white/60 mb-1.5 font-mono">UID / 이메일 (선택)</label>
-                <input
-                  type="text"
-                  value={targetIdentifier}
-                  onChange={(e) => setTargetIdentifier(e.target.value)}
-                  placeholder="예: captain@school.kr 또는 UID"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400"
-                />
-              </div>
+              {/* Selected Student Preview Card */}
+              {selectedStudentObj && (
+                <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-xs">
+                  <div className="text-[11px] text-white/50 mb-1 font-mono">권한 부여 대상 확인:</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-sm">
+                      {targetGrade}학년 {targetClass}반 {selectedStudentObj.studentNum}번 {selectedStudentObj.name}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      targetRole === 'council' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}>
+                      {targetRole === 'council' ? '학생자치회' : '반장/체육부장'}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit"
-                disabled={isAssigningCaptain}
+                disabled={isAssigningRole}
                 className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(245,158,11,0.3)] transition disabled:opacity-50"
               >
-                {isAssigningCaptain ? (
+                {isAssigningRole ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Firebase 저장 중...</span>
+                    <span>Firebase 및 시스템에 권한 등록 중...</span>
                   </>
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    <span>권한 부여 (users 컬렉션 role: 'captain' 저장)</span>
+                    <span>선택 학생에게 [{targetRole === 'council' ? '학생자치회' : '반장/체육부장'}] 권한 부여</span>
                   </>
                 )}
               </button>
             </form>
 
-            {/* List of Current Captains */}
+            {/* List of Assigned Students */}
             <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 space-y-4 lg:col-span-2">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
                 <div className="flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-amber-400" />
                   <h3 className="text-sm font-bold text-white font-mono">
-                    현재 지정된 반장 / 체육부장 목록
+                    현재 권한 부여 현황 ({assignedRolesList.length}명)
                   </h3>
                 </div>
-                <button
-                  onClick={loadCaptains}
-                  className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
+
+                {/* Filter Tabs */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setRoleFilter('ALL')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                      roleFilter === 'ALL'
+                        ? 'bg-white/20 text-white'
+                        : 'text-white/40 hover:text-white'
+                    }`}
+                  >
+                    전체 ({assignedRolesList.length})
+                  </button>
+                  <button
+                    onClick={() => setRoleFilter('council')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                      roleFilter === 'council'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-white/40 hover:text-white'
+                    }`}
+                  >
+                    학생자치회 ({councilCount})
+                  </button>
+                  <button
+                    onClick={() => setRoleFilter('captain')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                      roleFilter === 'captain'
+                        ? 'bg-amber-500 text-black'
+                        : 'text-white/40 hover:text-white'
+                    }`}
+                  >
+                    반장/체육부장 ({captainCount})
+                  </button>
+
+                  <button
+                    onClick={loadAssignedRoles}
+                    title="새로고침"
+                    className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition ml-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-3">
-                {captainsList.map((c) => (
-                  <div key={c.id} className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold font-mono">
-                        {c.grade}-{c.classNum}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-white">{c.name}</span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            role: 'captain'
-                          </span>
+              {displayedRolesList.length === 0 ? (
+                <div className="text-center py-10 text-white/40 text-xs font-mono">
+                  부여된 학생 권한이 없습니다. 좌측 폼에서 학생을 선택하여 권한을 부여하세요.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {displayedRolesList.map((r) => {
+                    const isCouncil = r.role === 'council';
+                    return (
+                      <div key={r.id} className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold font-mono text-xs border shrink-0 ${
+                            isCouncil 
+                              ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' 
+                              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                          }`}>
+                            {r.grade}-{r.classNum}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-white">{r.name}</span>
+                              <span className="text-xs text-white/40 font-mono">({r.studentNum}번)</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border ${
+                                isCouncil
+                                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              }`}>
+                                {isCouncil ? '학생자치회 (경기결과 입력)' : '반장/체육부장 (명단작성)'}
+                              </span>
+                              <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>부여됨</span>
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-white/40 font-mono mt-0.5">
+                              부여일: {new Date(r.assignedAt).toLocaleDateString()}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[11px] text-white/40 font-mono mt-0.5">
-                          ID: {c.uid || c.id} {c.email ? `(${c.email})` : ''}
-                        </div>
-                      </div>
-                    </div>
 
-                    <button
-                      onClick={() => handleRevokeCaptain(c.id, c.grade, c.classNum)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition self-end sm:self-auto"
-                    >
-                      권한 해제
-                    </button>
-                  </div>
-                ))}
-              </div>
+                        <button
+                          onClick={() => handleRevokeRole(r.id, r.role, r.name)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition self-end sm:self-auto"
+                        >
+                          권한 해제
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
           </div>

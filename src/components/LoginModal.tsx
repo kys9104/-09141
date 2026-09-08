@@ -33,6 +33,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [teacherPassword, setTeacherPassword] = useState<string>('');
   const [studentCouncilPassword, setStudentCouncilPassword] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [detectedAssignedRole, setDetectedAssignedRole] = useState<'captain' | 'council' | null>(null);
 
   const currentClassKey = `${grade}-${classNum}`;
   const classRoster = OFFICIAL_STUDENTS_ROSTER[currentClassKey] || [];
@@ -41,6 +42,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   useEffect(() => {
     if (role === 'admin' || role === 'TEACHER') {
       setName('체육교사');
+      setDetectedAssignedRole(null);
     } else {
       const match = classRoster.find(s => s.num === studentNum);
       if (match) {
@@ -48,6 +50,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       } else if (classRoster.length > 0) {
         setStudentNum(classRoster[0].num);
         setName(classRoster[0].name);
+      }
+
+      // Check if this student was assigned a role by the teacher
+      const assignedLocal = StorageService.findAssignedRole(grade, classNum, studentNum);
+      if (assignedLocal) {
+        setDetectedAssignedRole(assignedLocal.role);
+      } else {
+        FirebaseService.checkAssignedRole(grade, classNum, studentNum).then(r => {
+          if (r === 'council' || r === 'captain') {
+            setDetectedAssignedRole(r);
+          } else {
+            setDetectedAssignedRole(null);
+          }
+        });
       }
     }
   }, [grade, classNum, studentNum, role]);
@@ -60,14 +76,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     if (role === 'admin' || role === 'TEACHER') {
       if (teacherPassword !== '4161') {
-        setErrorMessage('체육교사(Admin) 접근 비밀번호가 일치하지 않습니다.');
+        setErrorMessage('체육교사 접근 비밀번호가 일치하지 않습니다.');
         return;
       }
+      // Grade & classNum set to 0 so "1학년 1반" is not prepended to the name
       const teacherProfile: UserProfile = {
-        grade: 1,
-        classNum: 1,
+        grade: 0 as GradeLevel,
+        classNum: 0,
         studentNum: 0,
-        name: name.trim() || '체육교사',
+        name: '체육교사',
         role: 'admin'
       };
       StorageService.saveCurrentUser(teacherProfile);
@@ -78,12 +95,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
 
     if (role === 'council' || role === 'STUDENT_COUNCIL') {
-      if (studentCouncilPassword !== '8650') {
+      // If student was directly assigned council role by teacher, bypass password
+      const isPreAssigned = detectedAssignedRole === 'council';
+      if (!isPreAssigned && studentCouncilPassword !== '8650') {
         setErrorMessage('학생자치회 접근 비밀번호가 일치하지 않습니다.');
         return;
       }
       if (!name.trim()) {
-        setErrorMessage('학생자치회 학생 이름을 입력해주세요.');
+        setErrorMessage('학생 성명을 선택하거나 입력해주세요.');
         return;
       }
       const councilProfile: UserProfile = {
@@ -105,7 +124,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    const finalRole: UserRole = role === 'captain' || role === 'SPORTS_REP' ? 'captain' : 'student';
+    // Determine final role: if pre-assigned by teacher, honor it!
+    let finalRole: UserRole = role === 'captain' || role === 'SPORTS_REP' ? 'captain' : 'student';
+    if (detectedAssignedRole === 'council' && (role === 'student' || role === 'STUDENT')) {
+      finalRole = 'council';
+    } else if (detectedAssignedRole === 'captain') {
+      finalRole = 'captain';
+    }
 
     if (finalRole === 'captain') {
       StorageService.setSportsRepresentative(grade, classNum, name.trim());
@@ -217,12 +242,29 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               >
                 <ShieldCheck className={`w-4 h-4 ${role === 'admin' || role === 'TEACHER' ? 'text-black' : 'text-[#E2FF00]'}`} />
                 <div>
-                  <div>체육교사(Admin)</div>
+                  <div>체육교사</div>
                   <div className={`text-[10px] font-normal ${role === 'admin' || role === 'TEACHER' ? 'text-black/70' : 'text-white/40'}`}>전체 관리·권한 부여</div>
                 </div>
               </button>
             </div>
           </div>
+
+          {/* Assigned Role Notification Badge */}
+          {detectedAssignedRole && role !== 'admin' && role !== 'TEACHER' && (
+            <div className={`p-3 rounded-xl border text-xs flex items-center justify-between font-bold ${
+              detectedAssignedRole === 'council'
+                ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-200'
+                : 'bg-amber-500/15 border-amber-500/40 text-amber-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>체육교사에 의해 [{detectedAssignedRole === 'council' ? '학생자치회' : '반장/체육부장'}] 권한이 부여된 학생입니다.</span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                승인됨
+              </span>
+            </div>
+          )}
 
           {/* Student Council Password Input */}
           {(role === 'council' || role === 'STUDENT_COUNCIL') && (
@@ -231,16 +273,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
                   <Lock className="w-3.5 h-3.5" /> 학생자치회 비밀번호 인증
                 </label>
-                <span className="text-[10px] text-white/40 font-mono">기본: 8650</span>
               </div>
-              <input
-                type="password"
-                id="student-council-password-input"
-                value={studentCouncilPassword}
-                onChange={(e) => setStudentCouncilPassword(e.target.value)}
-                placeholder="비밀번호 입력"
-                className="w-full px-3.5 py-2 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono"
-              />
+              {detectedAssignedRole === 'council' ? (
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
+                  ✓ 체육교사가 권한을 직접 부여하여 비밀번호 입력 없이 즉시 로그인할 수 있습니다.
+                </div>
+              ) : (
+                <input
+                  type="password"
+                  id="student-council-password-input"
+                  value={studentCouncilPassword}
+                  onChange={(e) => setStudentCouncilPassword(e.target.value)}
+                  placeholder="학생자치회 비밀번호 입력"
+                  className="w-full px-3.5 py-2 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono"
+                />
+              )}
             </div>
           )}
 
@@ -249,9 +296,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/30 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
-                  <Lock className="w-3.5 h-3.5" /> 체육교사(Admin) 비밀번호 인증
+                  <Lock className="w-3.5 h-3.5" /> 체육교사 비밀번호 인증
                 </label>
-                <span className="text-[10px] text-white/40 font-mono">기본: 4161</span>
               </div>
               <input
                 type="password"

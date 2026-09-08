@@ -21,8 +21,20 @@ const STORAGE_KEYS = {
   GAS_CONFIG: 'sinan_badminton_gas_config_v8',
   CURRENT_USER: 'sinan_badminton_current_user_v8',
   LINEUPS: 'sinan_badminton_lineups_v8',
-  CUSTOM_STUDENTS: 'sinan_badminton_students_v8'
+  CUSTOM_STUDENTS: 'sinan_badminton_students_v8',
+  ASSIGNED_ROLES: 'sinan_badminton_assigned_roles_v9'
 };
+
+export interface AssignedRoleRecord {
+  id: string;
+  grade: GradeLevel;
+  classNum: number;
+  studentNum: number;
+  name: string;
+  role: 'captain' | 'council';
+  assignedAt: string;
+  assignedBy?: string;
+}
 
 export class StorageService {
   static getMatches(): TieMatch[] {
@@ -65,6 +77,53 @@ export class StorageService {
     const reps = this.getSportsRepresentatives();
     reps[`${grade}-${classNum}`] = name;
     this.saveSportsRepresentatives(reps);
+  }
+
+  // ==========================================
+  // ASSIGNED ROLES (반장/체육부장 & 학생자치회)
+  // ==========================================
+  static getAssignedRoles(): AssignedRoleRecord[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.ASSIGNED_ROLES);
+      if (data) return JSON.parse(data);
+    } catch (e) {
+      console.error('Failed to parse assigned roles', e);
+    }
+    return [];
+  }
+
+  static saveAssignedRoles(roles: AssignedRoleRecord[]): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ASSIGNED_ROLES, JSON.stringify(roles));
+    } catch (e) {
+      console.error('Failed to save assigned roles', e);
+    }
+  }
+
+  static setAssignedRole(record: AssignedRoleRecord): void {
+    const roles = this.getAssignedRoles();
+    const existingIndex = roles.findIndex(r => r.id === record.id);
+    if (existingIndex >= 0) {
+      roles[existingIndex] = record;
+    } else {
+      roles.push(record);
+    }
+    this.saveAssignedRoles(roles);
+
+    // If role is captain, also sync with sports representative
+    if (record.role === 'captain') {
+      this.setSportsRepresentative(record.grade, record.classNum, record.name);
+    }
+  }
+
+  static removeAssignedRole(id: string): void {
+    const roles = this.getAssignedRoles().filter(r => r.id !== id);
+    this.saveAssignedRoles(roles);
+  }
+
+  static findAssignedRole(grade: GradeLevel, classNum: number, studentNum: number): AssignedRoleRecord | undefined {
+    const roles = this.getAssignedRoles();
+    return roles.find(r => r.grade === grade && r.classNum === classNum && r.studentNum === studentNum);
   }
 
   static getGASConfig(): GASConfig {

@@ -32,22 +32,24 @@ export async function testFirestoreConnection(): Promise<boolean> {
   }
 }
 
-export interface CaptainAssignment {
+export interface RoleAssignment {
   id: string; // doc ID or custom key
   uid?: string;
   email?: string;
   grade: GradeLevel;
   classNum: number;
-  studentNum?: number;
+  studentNum: number;
   name: string;
-  role: 'captain';
+  role: 'captain' | 'council';
   assignedAt: string;
   assignedBy?: string;
 }
 
+export type CaptainAssignment = RoleAssignment;
+
 export class FirebaseService {
   // ==========================================
-  // USERS & ROLES
+  // USERS & ROLES (반장/체육부장 & 학생자치회)
   // ==========================================
 
   /**
@@ -89,51 +91,73 @@ export class FirebaseService {
   }
 
   /**
-   * Teacher Admin: Grant 'captain' role to a student
+   * Check if student was granted a role by teacher
    */
-  static async grantCaptainRole(params: {
-    identifier: string; // UID or email or student number
+  static async checkAssignedRole(grade: GradeLevel, classNum: number, studentNum: number): Promise<'captain' | 'council' | 'student'> {
+    try {
+      const docId = `${grade}-${classNum}-${studentNum}`;
+      const userRef = doc(db, 'users', docId);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.role === 'council' || data.role === 'STUDENT_COUNCIL') return 'council';
+        if (data.role === 'captain' || data.role === 'SPORTS_REP') return 'captain';
+      }
+    } catch (e) {
+      console.warn('Firebase checkAssignedRole note:', e);
+    }
+    return 'student';
+  }
+
+  /**
+   * Teacher Admin: Grant role (captain or council) to a student
+   */
+  static async grantRole(params: {
     grade: GradeLevel;
     classNum: number;
     studentNum: number;
     name: string;
+    role: 'captain' | 'council';
     email?: string;
   }): Promise<{ success: boolean; message: string }> {
     try {
-      // Determine doc ID: if identifier provided or composite key
-      const docId = params.identifier.trim() || `${params.grade}-${params.classNum}-${params.studentNum}`;
+      const docId = `${params.grade}-${params.classNum}-${params.studentNum}`;
       const userRef = doc(db, 'users', docId);
 
-      await setDoc(userRef, {
+      const roleData = {
         uid: docId,
         email: params.email || '',
         grade: params.grade,
         classNum: params.classNum,
         studentNum: params.studentNum,
         name: params.name,
-        role: 'captain',
+        role: params.role,
         updatedAt: new Date().toISOString(),
         assignedAt: new Date().toISOString(),
         assignedBy: auth.currentUser?.email || '체육교사'
-      }, { merge: true });
+      };
+
+      await setDoc(userRef, roleData, { merge: true });
 
       return {
         success: true,
-        message: `${params.grade}학년 ${params.classNum}반 ${params.name} 학생에게 출전명단 작성(captain) 권한을 부여했습니다.`
+        message: `${params.grade}학년 ${params.classNum}반 ${params.studentNum}번 ${params.name} 학생에게 [${
+          params.role === 'council' ? '학생자치회' : '반장/체육부장'
+        }] 권한을 부여했습니다.`
       };
     } catch (e: any) {
-      console.error('Failed to grant captain role:', e);
+      console.error('Failed to grant role in Firestore:', e);
       return {
         success: false,
-        message: `권한 부여 실패: ${e.message || 'Firestore 권한 오류'}`
+        message: `Firestore 권한 부여 실패: ${e.message || '오류'}`
       };
     }
   }
 
   /**
-   * Teacher Admin: Revoke captain role back to student
+   * Teacher Admin: Revoke role back to student
    */
-  static async revokeCaptainRole(docId: string): Promise<{ success: boolean; message: string }> {
+  static async revokeRole(docId: string): Promise<{ success: boolean; message: string }> {
     try {
       const userRef = doc(db, 'users', docId);
       await setDoc(userRef, {
@@ -141,24 +165,27 @@ export class FirebaseService {
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      return { success: true, message: '반장/체육부장 권한을 해제하였습니다.' };
+      return { success: true, message: '학생 권한이 일반 학생으로 해제되었습니다.' };
     } catch (e: any) {
-      console.error('Failed to revoke captain role:', e);
+      console.error('Failed to revoke role:', e);
       return { success: false, message: `권한 해제 실패: ${e.message}` };
     }
   }
 
   /**
-   * Fetch all captain users
+   * Fetch all assigned roles (both captain and council)
    */
-  static async getCaptains(): Promise<CaptainAssignment[]> {
+  static async getAssignedRoles(): Promise<RoleAssignment[]> {
     try {
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('role', 'in', ['captain', 'SPORTS_REP']));
+      const q = query(usersRef, where('role', 'in', ['captain', 'SPORTS_REP', 'council', 'STUDENT_COUNCIL']));
       const snap = await getDocs(q);
-      const list: CaptainAssignment[] = [];
+      const list: RoleAssignment[] = [];
       snap.forEach(d => {
         const data = d.data();
+        const rawRole = data.role;
+        const normalizedRole: 'captain' | 'council' = 
+          (rawRole === 'council' || rawRole === 'STUDENT_COUNCIL') ? 'council' : 'captain';
         list.push({
           id: d.id,
           uid: data.uid || d.id,
@@ -167,16 +194,46 @@ export class FirebaseService {
           classNum: data.classNum || 1,
           studentNum: data.studentNum || 0,
           name: data.name || '미등록',
-          role: 'captain',
+          role: normalizedRole,
           assignedAt: data.assignedAt || data.updatedAt || new Date().toISOString(),
           assignedBy: data.assignedBy || '체육교사'
         });
       });
       return list;
     } catch (e) {
-      console.warn('Firebase getCaptains fallback:', e);
+      console.warn('Firebase getAssignedRoles fallback:', e);
       return [];
     }
+  }
+
+  /**
+   * Legacy method for captain
+   */
+  static async grantCaptainRole(params: {
+    identifier?: string;
+    grade: GradeLevel;
+    classNum: number;
+    studentNum: number;
+    name: string;
+    email?: string;
+  }): Promise<{ success: boolean; message: string }> {
+    return this.grantRole({
+      grade: params.grade,
+      classNum: params.classNum,
+      studentNum: params.studentNum,
+      name: params.name,
+      role: 'captain',
+      email: params.email
+    });
+  }
+
+  static async revokeCaptainRole(docId: string): Promise<{ success: boolean; message: string }> {
+    return this.revokeRole(docId);
+  }
+
+  static async getCaptains(): Promise<CaptainAssignment[]> {
+    const all = await this.getAssignedRoles();
+    return all.filter(r => r.role === 'captain');
   }
 
   // ==========================================
