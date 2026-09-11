@@ -65,7 +65,7 @@ export default function App() {
   // Sync state trigger
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  // Synchronize initial data with Firebase Firestore on mount
+  // Synchronize initial data with Firebase Firestore on mount & subscribe to roles
   useEffect(() => {
     const syncWithFirebase = async () => {
       try {
@@ -79,6 +79,51 @@ export default function App() {
       }
     };
     syncWithFirebase();
+
+    // Subscribe to assigned_roles globally so student devices receive teacher grants instantly
+    const unsubscribeRoles = FirebaseService.subscribeAssignedRoles((liveRoles) => {
+      const localList = liveRoles.map(item => ({
+        id: item.id,
+        grade: item.grade,
+        classNum: item.classNum,
+        studentNum: item.studentNum,
+        name: item.name,
+        role: item.role,
+        assignedAt: item.assignedAt,
+        assignedBy: item.assignedBy
+      }));
+      StorageService.saveAssignedRoles(localList);
+
+      // Also sync captain representatives
+      liveRoles.forEach(r => {
+        if (r.role === 'captain') {
+          StorageService.setSportsRepresentative(r.grade, r.classNum, r.name);
+        }
+      });
+
+      // If current user is logged in, check if their role was updated
+      const sessionUser = StorageService.getCurrentUser();
+      if (sessionUser && sessionUser.grade && sessionUser.classNum && sessionUser.studentNum) {
+        const matchingRole = liveRoles.find(
+          r => r.grade === sessionUser.grade && r.classNum === sessionUser.classNum && r.studentNum === sessionUser.studentNum
+        );
+        if (matchingRole && matchingRole.role !== sessionUser.role) {
+          const updatedUser: UserProfile = {
+            ...sessionUser,
+            role: matchingRole.role,
+            isSportsRep: matchingRole.role === 'captain'
+          };
+          StorageService.saveCurrentUser(updatedUser);
+          setCurrentUser(updatedUser);
+        }
+      }
+
+      setRefreshKey(k => k + 1);
+    });
+
+    return () => {
+      unsubscribeRoles();
+    };
   }, []);
 
   const handleLoginSuccess = (user: UserProfile) => {

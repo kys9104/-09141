@@ -12,10 +12,11 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile } from '../types';
+import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile, isCouncilRole, isAdminRole } from '../types';
 import { StorageService } from '../services/storageService';
 import { GASService } from '../services/gasService';
 import { GoogleSheetsService } from '../services/googleSheetsService';
+import { FirebaseService } from '../services/firebaseService';
 
 interface LiveScoreModalProps {
   isOpen: boolean;
@@ -75,7 +76,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
 
   const teamAGrade = tie.teamAGrade || tie.grade || 1;
   const teamBGrade = tie.teamBGrade || tie.grade || 1;
-  const canEditScore = currentUser?.role === 'STUDENT_COUNCIL' || currentUser?.role === 'TEACHER';
+  const canEditScore = isCouncilRole(currentUser?.role) || isAdminRole(currentUser?.role);
 
   const addPointA = () => {
     if (!canEditScore) return;
@@ -179,7 +180,9 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
     matches[tieIdx] = t;
     StorageService.saveMatches(matches);
 
-    // Auto-sync to Google Sheets REST API & GAS
+    // Auto-sync to Firebase, Google Sheets REST API & GAS
+    FirebaseService.saveMatch(t, currentUser?.name || '학생자치회').catch(console.error);
+
     if (isMatchDone) {
       GoogleSheetsService.appendMatchResult(t, currentUser?.name || '학생자치회/교사').catch(err => {
         console.warn('Google Sheets sync notice:', err.message);

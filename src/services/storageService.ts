@@ -116,9 +116,25 @@ export class StorageService {
     }
   }
 
-  static removeAssignedRole(id: string): void {
-    const roles = this.getAssignedRoles().filter(r => r.id !== id);
+  static removeAssignedRole(id: string, grade?: GradeLevel, classNum?: number, studentNum?: number): void {
+    const roles = this.getAssignedRoles().filter(r => {
+      if (r.id === id) return false;
+      if (grade !== undefined && classNum !== undefined && studentNum !== undefined) {
+        if (r.grade === grade && r.classNum === classNum && r.studentNum === studentNum) return false;
+      }
+      return true;
+    });
     this.saveAssignedRoles(roles);
+
+    // If grade and classNum provided, clean up sports representative as well
+    if (grade && classNum) {
+      const reps = this.getSportsRepresentatives();
+      const key = `${grade}-${classNum}`;
+      if (reps[key]) {
+        delete reps[key];
+        this.saveSportsRepresentatives(reps);
+      }
+    }
   }
 
   static findAssignedRole(grade: GradeLevel, classNum: number, studentNum: number): AssignedRoleRecord | undefined {

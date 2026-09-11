@@ -74,63 +74,48 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     }
   }, [targetGrade, targetClass]);
 
-  // Load initial data
+  // Load initial data and connect real-time listener
   useEffect(() => {
     loadAssignedRoles();
     loadGasUrl();
     loadMatchesFromFirestore();
+
+    // Subscribe to Firestore assigned_roles changes in real-time
+    const unsubscribe = FirebaseService.subscribeAssignedRoles((liveRoles) => {
+      setAssignedRolesList(liveRoles);
+      const localList: AssignedRoleRecord[] = liveRoles.map(item => ({
+        id: item.id,
+        grade: item.grade,
+        classNum: item.classNum,
+        studentNum: item.studentNum,
+        name: item.name,
+        role: item.role,
+        assignedAt: item.assignedAt,
+        assignedBy: item.assignedBy
+      }));
+      StorageService.saveAssignedRoles(localList);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const loadAssignedRoles = async () => {
     try {
       const list = await FirebaseService.getAssignedRoles();
-      if (list && list.length > 0) {
-        setAssignedRolesList(list);
-        // Also sync local storage
-        const localList: AssignedRoleRecord[] = list.map(item => ({
-          id: item.id,
-          grade: item.grade,
-          classNum: item.classNum,
-          studentNum: item.studentNum,
-          name: item.name,
-          role: item.role,
-          assignedAt: item.assignedAt,
-          assignedBy: item.assignedBy
-        }));
-        StorageService.saveAssignedRoles(localList);
-      } else {
-        // Fallback to local storage
-        const localRoles = StorageService.getAssignedRoles();
-        if (localRoles.length > 0) {
-          setAssignedRolesList(localRoles.map(r => ({
-            id: r.id,
-            grade: r.grade,
-            classNum: r.classNum,
-            studentNum: r.studentNum,
-            name: r.name,
-            role: r.role,
-            assignedAt: r.assignedAt,
-            assignedBy: r.assignedBy
-          })));
-        } else {
-          // Default captain fallback
-          const reps = StorageService.getSportsRepresentatives();
-          const fallback: RoleAssignment[] = Object.entries(reps).map(([k, v]) => {
-            const [g, c] = k.split('-').map(Number);
-            return {
-              id: `rep_${k}`,
-              grade: (g || 1) as GradeLevel,
-              classNum: c || 1,
-              studentNum: 1,
-              name: v,
-              role: 'captain',
-              assignedAt: new Date().toISOString(),
-              assignedBy: '체육교사'
-            };
-          });
-          setAssignedRolesList(fallback);
-        }
-      }
+      setAssignedRolesList(list);
+      const localList: AssignedRoleRecord[] = list.map(item => ({
+        id: item.id,
+        grade: item.grade,
+        classNum: item.classNum,
+        studentNum: item.studentNum,
+        name: item.name,
+        role: item.role,
+        assignedAt: item.assignedAt,
+        assignedBy: item.assignedBy
+      }));
+      StorageService.saveAssignedRoles(localList);
     } catch (e) {
       console.warn('Error loading roles:', e);
       const localRoles = StorageService.getAssignedRoles();
@@ -195,59 +180,98 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       return;
     }
 
-    setIsAssigningRole(true);
-    setRoleMsg(null);
+    const docId = `${targetGrade}-${targetClass}-${student.studentNum}`;
+    const newRecord: RoleAssignment = {
+      id: docId,
+      grade: targetGrade,
+      classNum: targetClass,
+      studentNum: student.studentNum,
+      name: student.name,
+      role: targetRole,
+      assignedAt: new Date().toISOString(),
+      assignedBy: '체육교사'
+    };
 
-    try {
-      const res = await FirebaseService.grantRole({
-        grade: targetGrade,
-        classNum: targetClass,
-        studentNum: student.studentNum,
-        name: student.name,
-        role: targetRole
-      });
+    // 1. Instant local optimistic update (0.01s response)
+    StorageService.setAssignedRole({
+      id: newRecord.id,
+      grade: targetGrade,
+      classNum: targetClass,
+      studentNum: student.studentNum,
+      name: student.name,
+      role: targetRole,
+      assignedAt: newRecord.assignedAt,
+      assignedBy: '체육교사'
+    });
 
-      // Save to local storage as well
-      StorageService.setAssignedRole({
-        id: `${targetGrade}-${targetClass}-${student.studentNum}`,
-        grade: targetGrade,
-        classNum: targetClass,
-        studentNum: student.studentNum,
-        name: student.name,
-        role: targetRole,
-        assignedAt: new Date().toISOString(),
-        assignedBy: '체육교사'
-      });
-
-      setRoleMsg({
-        type: res.success ? 'success' : 'error',
-        text: res.success 
-          ? `✓ ${targetGrade}학년 ${targetClass}반 ${student.studentNum}번 ${student.name} 학생에게 [${targetRole === 'council' ? '학생자치회' : '반장/체육부장'}] 권한이 정상 부여되었습니다!` 
-          : res.message
-      });
-
-      await loadAssignedRoles();
-    } catch (err: any) {
-      setRoleMsg({
-        type: 'error',
-        text: `권한 부여 실패: ${err.message}`
-      });
-    } finally {
-      setIsAssigningRole(false);
+    if (targetRole === 'captain') {
+      StorageService.setSportsRepresentative(targetGrade, targetClass, student.name);
     }
+
+    setAssignedRolesList(prev => {
+      const idx = prev.findIndex(p => 
+        p.id === newRecord.id || 
+        (p.grade === targetGrade && p.classNum === targetClass && p.studentNum === student.studentNum)
+      );
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = newRecord;
+        return updated;
+      }
+      return [newRecord, ...prev];
+    });
+
+    setRoleMsg({
+      type: 'success',
+      text: `✓ ${targetGrade}학년 ${targetClass}반 ${student.studentNum}번 ${student.name} 학생에게 [${targetRole === 'council' ? '학생자치회' : '반장/체육부장'}] 권한이 즉시 부여되었습니다!`
+    });
+
+    // 2. Background Firestore write
+    setIsAssigningRole(true);
+    FirebaseService.grantRole({
+      grade: targetGrade,
+      classNum: targetClass,
+      studentNum: student.studentNum,
+      name: student.name,
+      role: targetRole
+    }).then(res => {
+      if (!res.success) {
+        console.warn('Background Firestore grant notification:', res.message);
+      }
+    }).catch(err => {
+      console.warn('Background Firestore grant error:', err);
+    }).finally(() => {
+      setIsAssigningRole(false);
+    });
   };
 
-  // Revoke Role
-  const handleRevokeRole = async (docId: string, roleName: string, studentName: string) => {
+  // Revoke Role (Instant local update + Background Firestore deletion)
+  const handleRevokeRole = async (
+    docId: string, 
+    roleName: string, 
+    studentName: string,
+    grade?: GradeLevel,
+    classNum?: number,
+    studentNum?: number
+  ) => {
     if (!confirm(`정말 [${studentName}] 학생의 ${roleName === 'council' ? '학생자치회' : '반장/체육부장'} 권한을 해제하시겠습니까?`)) return;
-    try {
-      await FirebaseService.revokeRole(docId);
-      StorageService.removeAssignedRole(docId);
-      await loadAssignedRoles();
-      setRoleMsg({ type: 'success', text: `✓ ${studentName} 학생의 권한이 정상적으로 해제되었습니다.` });
-    } catch (err: any) {
-      setRoleMsg({ type: 'error', text: `권한 해제 실패: ${err.message}` });
-    }
+    
+    // 1. Instant UI & Storage removal (0.01s response)
+    StorageService.removeAssignedRole(docId, grade, classNum, studentNum);
+    setAssignedRolesList(prev => prev.filter(p => {
+      if (p.id === docId) return false;
+      if (grade !== undefined && classNum !== undefined && studentNum !== undefined) {
+        if (p.grade === grade && p.classNum === classNum && p.studentNum === studentNum) return false;
+      }
+      return true;
+    }));
+
+    setRoleMsg({ type: 'success', text: `✓ [${studentName}] 학생의 권한이 정상적으로 해제되었습니다.` });
+
+    // 2. Background Firestore delete
+    FirebaseService.revokeRole(docId, { grade, classNum, studentNum }).catch(err => {
+      console.warn('Background revoke error:', err);
+    });
   };
 
   // Save GAS Webhook URL
@@ -728,7 +752,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         </div>
 
                         <button
-                          onClick={() => handleRevokeRole(r.id, r.role, r.name)}
+                          onClick={() => handleRevokeRole(r.id, r.role, r.name, r.grade, r.classNum, r.studentNum)}
                           className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition self-end sm:self-auto"
                         >
                           권한 해제

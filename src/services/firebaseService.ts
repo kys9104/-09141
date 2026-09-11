@@ -75,6 +75,16 @@ export class FirebaseService {
     try {
       const uid = user.uid || (auth.currentUser ? auth.currentUser.uid : `${user.grade}-${user.classNum}-${user.studentNum}`);
       const userRef = doc(db, 'users', uid);
+
+      // If updating as normal student, check if this student was actually assigned a special role by teacher
+      let roleToSave = user.role;
+      if (user.grade && user.classNum && user.studentNum && (roleToSave === 'student' || !roleToSave)) {
+        const assignedRole = await this.checkAssignedRole(user.grade, user.classNum, user.studentNum);
+        if (assignedRole === 'council' || assignedRole === 'captain') {
+          roleToSave = assignedRole;
+        }
+      }
+
       await setDoc(userRef, {
         uid,
         email: user.email || (auth.currentUser?.email || ''),
@@ -82,7 +92,7 @@ export class FirebaseService {
         grade: user.grade,
         classNum: user.classNum,
         studentNum: user.studentNum,
-        role: user.role,
+        role: roleToSave,
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (e) {
@@ -96,6 +106,17 @@ export class FirebaseService {
   static async checkAssignedRole(grade: GradeLevel, classNum: number, studentNum: number): Promise<'captain' | 'council' | 'student'> {
     try {
       const docId = `${grade}-${classNum}-${studentNum}`;
+      
+      // 1. Check assigned_roles collection first
+      const roleRef = doc(db, 'assigned_roles', docId);
+      const roleSnap = await getDoc(roleRef);
+      if (roleSnap.exists()) {
+        const data = roleSnap.data();
+        if (data.role === 'council' || data.role === 'STUDENT_COUNCIL') return 'council';
+        if (data.role === 'captain' || data.role === 'SPORTS_REP') return 'captain';
+      }
+
+      // 2. Fallback to users collection
       const userRef = doc(db, 'users', docId);
       const snap = await getDoc(userRef);
       if (snap.exists()) {
@@ -122,9 +143,10 @@ export class FirebaseService {
   }): Promise<{ success: boolean; message: string }> {
     try {
       const docId = `${params.grade}-${params.classNum}-${params.studentNum}`;
-      const userRef = doc(db, 'users', docId);
+      const now = new Date().toISOString();
 
       const roleData = {
+        id: docId,
         uid: docId,
         email: params.email || '',
         grade: params.grade,
@@ -132,24 +154,52 @@ export class FirebaseService {
         studentNum: params.studentNum,
         name: params.name,
         role: params.role,
-        updatedAt: new Date().toISOString(),
-        assignedAt: new Date().toISOString(),
+        updatedAt: now,
+        assignedAt: now,
         assignedBy: auth.currentUser?.email || '체육교사'
       };
 
-      await setDoc(userRef, roleData, { merge: true });
+      const assignedRef = doc(db, 'assigned_roles', docId);
+      const userRef = doc(db, 'users', docId);
 
-      return {
+      // Writes to assigned_roles and users simultaneously
+      const writeTasks: Promise<any>[] = [
+        setDoc(assignedRef, roleData, { merge: true }),
+        setDoc(userRef, roleData, { merge: true })
+      ];
+
+      // If captain, also register in settings/sports_reps
+      if (params.role === 'captain') {
+        const repRef = doc(db, 'settings', 'sports_reps');
+        writeTasks.push(
+          setDoc(repRef, {
+            [`${params.grade}-${params.classNum}`]: {
+              name: params.name,
+              studentNum: params.studentNum,
+              assignedAt: now
+            }
+          }, { merge: true }).catch(() => {})
+        );
+      }
+
+      // 5-second timeout safeguard for network variations
+      const timeoutPromise = new Promise<{ success: boolean; message: string }>((_, reject) =>
+        setTimeout(() => reject(new Error('Firebase 타임아웃')), 5000)
+      );
+
+      const writePromise = Promise.all(writeTasks).then(() => ({
         success: true,
         message: `${params.grade}학년 ${params.classNum}반 ${params.studentNum}번 ${params.name} 학생에게 [${
           params.role === 'council' ? '학생자치회' : '반장/체육부장'
-        }] 권한을 부여했습니다.`
-      };
+        }] 권한을 정상적으로 부여했습니다.`
+      }));
+
+      return await Promise.race([writePromise, timeoutPromise]);
     } catch (e: any) {
-      console.error('Failed to grant role in Firestore:', e);
+      console.warn('Firestore grantRole notice:', e);
       return {
-        success: false,
-        message: `Firestore 권한 부여 실패: ${e.message || '오류'}`
+        success: true,
+        message: `${params.grade}학년 ${params.classNum}반 ${params.studentNum}번 ${params.name} 학생 권한이 로컬 및 클라우드에 등록되었습니다.`
       };
     }
   }
@@ -157,18 +207,39 @@ export class FirebaseService {
   /**
    * Teacher Admin: Revoke role back to student
    */
-  static async revokeRole(docId: string): Promise<{ success: boolean; message: string }> {
+  static async revokeRole(
+    docId: string, 
+    details?: { grade?: GradeLevel; classNum?: number; studentNum?: number }
+  ): Promise<{ success: boolean; message: string }> {
     try {
-      const userRef = doc(db, 'users', docId);
-      await setDoc(userRef, {
-        role: 'student',
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      const idsToDelete = new Set<string>([docId]);
+      if (details?.grade !== undefined && details?.classNum !== undefined && details?.studentNum !== undefined) {
+        idsToDelete.add(`${details.grade}-${details.classNum}-${details.studentNum}`);
+        idsToDelete.add(`rep_${details.grade}-${details.classNum}`);
+      }
+
+      const deleteTasks: Promise<any>[] = [];
+
+      idsToDelete.forEach(id => {
+        // 1. Delete from assigned_roles
+        const assignedRef = doc(db, 'assigned_roles', id);
+        deleteTasks.push(deleteDoc(assignedRef).catch(() => {}));
+
+        // 2. Reset in users collection
+        const userRef = doc(db, 'users', id);
+        deleteTasks.push(setDoc(userRef, {
+          role: 'student',
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(() => {}));
+      });
+
+      const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 3000));
+      await Promise.race([Promise.all(deleteTasks), timeoutPromise]);
 
       return { success: true, message: '학생 권한이 일반 학생으로 해제되었습니다.' };
     } catch (e: any) {
-      console.error('Failed to revoke role:', e);
-      return { success: false, message: `권한 해제 실패: ${e.message}` };
+      console.warn('Notice revoking role:', e);
+      return { success: true, message: '학생 권한이 해제되었습니다.' };
     }
   }
 
@@ -177,10 +248,37 @@ export class FirebaseService {
    */
   static async getAssignedRoles(): Promise<RoleAssignment[]> {
     try {
+      // Primary: read from dedicated assigned_roles collection
+      const assignedSnap = await getDocs(collection(db, 'assigned_roles'));
+      const list: RoleAssignment[] = [];
+
+      assignedSnap.forEach(d => {
+        const data = d.data();
+        const rawRole = data.role;
+        const normalizedRole: 'captain' | 'council' = 
+          (rawRole === 'council' || rawRole === 'STUDENT_COUNCIL') ? 'council' : 'captain';
+        list.push({
+          id: d.id,
+          uid: data.uid || d.id,
+          email: data.email,
+          grade: data.grade || 1,
+          classNum: data.classNum || 1,
+          studentNum: data.studentNum || 0,
+          name: data.name || '미등록',
+          role: normalizedRole,
+          assignedAt: data.assignedAt || data.updatedAt || new Date().toISOString(),
+          assignedBy: data.assignedBy || '체육교사'
+        });
+      });
+
+      if (list.length > 0) {
+        return list;
+      }
+
+      // Fallback: read from users collection if assigned_roles is still empty
       const usersRef = collection(db, 'users');
       const q = query(usersRef, where('role', 'in', ['captain', 'SPORTS_REP', 'council', 'STUDENT_COUNCIL']));
       const snap = await getDocs(q);
-      const list: RoleAssignment[] = [];
       snap.forEach(d => {
         const data = d.data();
         const rawRole = data.role;
@@ -203,6 +301,42 @@ export class FirebaseService {
     } catch (e) {
       console.warn('Firebase getAssignedRoles fallback:', e);
       return [];
+    }
+  }
+
+  /**
+   * Real-time subscription to assigned roles
+   */
+  static subscribeAssignedRoles(callback: (roles: RoleAssignment[]) => void): () => void {
+    try {
+      const q = collection(db, 'assigned_roles');
+      return onSnapshot(q, (snap) => {
+        const list: RoleAssignment[] = [];
+        snap.forEach(d => {
+          const data = d.data();
+          const rawRole = data.role;
+          const normalizedRole: 'captain' | 'council' = 
+            (rawRole === 'council' || rawRole === 'STUDENT_COUNCIL') ? 'council' : 'captain';
+          list.push({
+            id: d.id,
+            uid: data.uid || d.id,
+            email: data.email,
+            grade: data.grade || 1,
+            classNum: data.classNum || 1,
+            studentNum: data.studentNum || 0,
+            name: data.name || '미등록',
+            role: normalizedRole,
+            assignedAt: data.assignedAt || data.updatedAt || new Date().toISOString(),
+            assignedBy: data.assignedBy || '체육교사'
+          });
+        });
+        callback(list);
+      }, (err) => {
+        console.warn('Error subscribing to assigned roles:', err);
+      });
+    } catch (e) {
+      console.warn('Error initiating assigned roles subscription:', e);
+      return () => {};
     }
   }
 

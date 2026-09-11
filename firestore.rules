@@ -54,6 +54,12 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Assigned roles collection (체육교사 권한 부여 전용 컬렉션)
+    match /assigned_roles/{roleId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Rosters (출전명단) collection:
     // 읽기는 누구나 가능, 쓰기/수정 허용
     match /rosters/{rosterId} {

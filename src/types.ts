@@ -33,6 +33,7 @@ export interface UserProfile {
   classNum: number;
   studentNum: number;
   name: string;
+  gender?: 'M' | 'F';
   role: UserRole;
   isSportsRep?: boolean;
 }

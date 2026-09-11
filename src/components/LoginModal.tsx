@@ -38,7 +38,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const currentClassKey = `${grade}-${classNum}`;
   const classRoster = OFFICIAL_STUDENTS_ROSTER[currentClassKey] || [];
 
-  // Auto-sync name when grade/class/studentNum changes if in student/captain mode
+  // Auto-sync name and check assigned role when grade/class/studentNum changes
   useEffect(() => {
     if (role === 'admin' || role === 'TEACHER') {
       setName('체육교사');
@@ -52,21 +52,31 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         setName(classRoster[0].name);
       }
 
-      // Check if this student was assigned a role by the teacher
+      // Check if this student was assigned a role by the teacher (Local + Firestore)
       const assignedLocal = StorageService.findAssignedRole(grade, classNum, studentNum);
       if (assignedLocal) {
         setDetectedAssignedRole(assignedLocal.role);
+        if (assignedLocal.role === 'council') {
+          setRole('council');
+        } else if (assignedLocal.role === 'captain') {
+          setRole('captain');
+        }
       } else {
         FirebaseService.checkAssignedRole(grade, classNum, studentNum).then(r => {
           if (r === 'council' || r === 'captain') {
             setDetectedAssignedRole(r);
+            if (r === 'council') {
+              setRole('council');
+            } else if (r === 'captain') {
+              setRole('captain');
+            }
           } else {
             setDetectedAssignedRole(null);
           }
         });
       }
     }
-  }, [grade, classNum, studentNum, role]);
+  }, [grade, classNum, studentNum]);
 
   if (!isOpen) return null;
 
@@ -94,22 +104,44 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
+    // Direct live check from Storage and Firestore before completing login
+    let liveRole = detectedAssignedRole;
+    if (!liveRole) {
+      const localCheck = StorageService.findAssignedRole(grade, classNum, studentNum);
+      if (localCheck) {
+        liveRole = localCheck.role;
+      } else {
+        const firestoreCheck = await FirebaseService.checkAssignedRole(grade, classNum, studentNum);
+        if (firestoreCheck === 'council' || firestoreCheck === 'captain') {
+          liveRole = firestoreCheck;
+        }
+      }
+    }
+
+    // If teacher assigned council role, guide user to council login with password
+    if (liveRole === 'council' && role !== 'council' && role !== 'STUDENT_COUNCIL') {
+      setRole('council');
+      setErrorMessage('체육교사가 학생자치회로 권한을 부여한 학생입니다. 학생자치회 비밀번호(8650)를 입력해주세요.');
+      return;
+    }
+
     if (role === 'council' || role === 'STUDENT_COUNCIL') {
-      // If student was directly assigned council role by teacher, bypass password
-      const isPreAssigned = detectedAssignedRole === 'council';
-      if (!isPreAssigned && studentCouncilPassword !== '8650') {
-        setErrorMessage('학생자치회 접근 비밀번호가 일치하지 않습니다.');
+      // 체육교사가 권한을 부여했더라도 8650 비밀번호 입력 필수
+      if (studentCouncilPassword !== '8650') {
+        setErrorMessage('학생자치회 접근 비밀번호(8650)가 일치하지 않습니다.');
         return;
       }
       if (!name.trim()) {
         setErrorMessage('학생 성명을 선택하거나 입력해주세요.');
         return;
       }
+      const studentGender = classRoster.find(s => s.num === studentNum)?.gender;
       const councilProfile: UserProfile = {
         grade,
         classNum,
         studentNum,
         name: name.trim(),
+        gender: studentGender,
         role: 'council'
       };
       StorageService.saveCurrentUser(councilProfile);
@@ -124,11 +156,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // Determine final role: if pre-assigned by teacher, honor it!
-    let finalRole: UserRole = role === 'captain' || role === 'SPORTS_REP' ? 'captain' : 'student';
-    if (detectedAssignedRole === 'council' && (role === 'student' || role === 'STUDENT')) {
-      finalRole = 'council';
-    } else if (detectedAssignedRole === 'captain') {
+    // Determine final role: if pre-assigned captain by teacher, honor it!
+    let finalRole: UserRole = 'student';
+    if (liveRole === 'captain' || role === 'captain' || role === 'SPORTS_REP') {
       finalRole = 'captain';
     }
 
@@ -136,11 +166,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       StorageService.setSportsRepresentative(grade, classNum, name.trim());
     }
 
+    const studentGender = classRoster.find(s => s.num === studentNum)?.gender;
     const userProfile: UserProfile = {
       grade,
       classNum,
       studentNum,
       name: name.trim(),
+      gender: studentGender,
       role: finalRole,
       isSportsRep: finalRole === 'captain'
     };
@@ -274,20 +306,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   <Lock className="w-3.5 h-3.5" /> 학생자치회 비밀번호 인증
                 </label>
               </div>
-              {detectedAssignedRole === 'council' ? (
-                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
-                  ✓ 체육교사가 권한을 직접 부여하여 비밀번호 입력 없이 즉시 로그인할 수 있습니다.
+              {detectedAssignedRole === 'council' && (
+                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-mono">
+                  ✓ 체육교사 권한 부여 확인됨: 학생자치회 비밀번호를 입력하세요.
                 </div>
-              ) : (
-                <input
-                  type="password"
-                  id="student-council-password-input"
-                  value={studentCouncilPassword}
-                  onChange={(e) => setStudentCouncilPassword(e.target.value)}
-                  placeholder="학생자치회 비밀번호 입력"
-                  className="w-full px-3.5 py-2 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono"
-                />
               )}
+              <input
+                type="password"
+                id="student-council-password-input"
+                value={studentCouncilPassword}
+                onChange={(e) => setStudentCouncilPassword(e.target.value)}
+                placeholder="비밀번호 입력"
+                autoComplete="current-password"
+                className="w-full px-3.5 py-2 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono tracking-widest"
+              />
             </div>
           )}
 
