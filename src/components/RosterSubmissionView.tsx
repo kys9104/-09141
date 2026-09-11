@@ -19,7 +19,8 @@ import {
   UserProfile, 
   MatchCategory,
   isAdminRole,
-  isCaptainRole
+  isCaptainRole,
+  isCouncilRole
 } from '../types';
 import { CATEGORIES, LEAGUE_ROUNDS } from '../data/initialData';
 import { StorageService } from '../services/storageService';
@@ -131,12 +132,12 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
     e.preventDefault();
     setStatusMessage(null);
 
-    // Permission check
-    const canSubmit = isCaptainRole(currentUser?.role) || isAdminRole(currentUser?.role);
+    // Permission check: Captain (반장/체육부장), Council (학생자치회), Admin (체육교사) 모두 출전명단 작성 및 저장 가능
+    const canSubmit = isCaptainRole(currentUser?.role) || isCouncilRole(currentUser?.role) || isAdminRole(currentUser?.role);
     if (!canSubmit) {
       setStatusMessage({
         type: 'error',
-        text: '출전명단 제출 권한이 없습니다. 해당 반의 반장/체육부장(captain) 또는 체육교사(Admin)만 가능합니다.'
+        text: '출전명단 제출 권한이 없습니다. 해당 반의 반장/체육부장(captain), 학생자치회(council) 또는 체육교사(Admin)만 가능합니다.'
       });
       return;
     }
@@ -185,10 +186,10 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
 
     try {
       const submitterInfo = currentUser 
-        ? `${currentUser.name} (${currentUser.grade}학년 ${currentUser.classNum}반 ${currentUser.role})`
-        : '체육부장/반장';
+        ? `${currentUser.name} (${currentUser.grade ? `${currentUser.grade}학년 ${currentUser.classNum}반 ` : ''}${currentUser.role === 'council' ? '학생자치회' : currentUser.role === 'captain' ? '체육부장/반장' : currentUser.role})`
+        : '체육부장/학생자치회';
 
-      // 1. Save to Firebase 'rosters' collection for each active category
+      // 1. Save to Firebase 'rosters' collection & StorageService for each active category
       const categoriesToSave: Array<{ category: MatchCategory; players: Player[] }> = [
         { category: 'MEN_SINGLES', players: [findStudentObj(msPlayer, 'M')] },
         { category: 'WOMEN_SINGLES', players: [findStudentObj(wsPlayer, 'F')] },
@@ -198,7 +199,22 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
       ];
 
       for (const item of categoriesToSave) {
+        const rosterId = `roster_r${selectedRound}_${selectedGrade}-${selectedClass}_${item.category}`;
+        const rosterEntry = {
+          id: rosterId,
+          roundId: selectedRound,
+          grade: selectedGrade,
+          classNum: selectedClass,
+          category: item.category,
+          players: item.players,
+          submittedBy: submitterInfo,
+          submittedAt: new Date().toISOString(),
+          isLocked: false
+        };
+        StorageService.saveRoster(rosterEntry);
+
         await FirebaseService.saveRoster({
+          id: rosterId,
           roundId: selectedRound,
           grade: selectedGrade,
           classNum: selectedClass,
@@ -256,7 +272,7 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
 
       setStatusMessage({
         type: 'success',
-        text: `제${selectedRound}라운드 ${selectedGrade}학년 ${selectedClass}반 출전명단이 Firebase rosters 컬렉션에 성공적으로 저장되었습니다!`
+        text: `제${selectedRound}라운드 ${selectedGrade}학년 ${selectedClass}반 출전명단이 Firestore 및 로컬에 정상 저장되었습니다!`
       });
 
       // Reload submitted list
@@ -278,7 +294,9 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
   };
 
   const isCaptain = isCaptainRole(currentUser?.role);
+  const isCouncil = isCouncilRole(currentUser?.role);
   const isAdmin = isAdminRole(currentUser?.role);
+  const hasEditAccess = isCaptain || isCouncil || isAdmin;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -295,17 +313,17 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30">
-                  CAPTAIN ONLY
+                  ROSTER ACCESS
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30">
                   FIREBASE ROSTERS
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                반장 / 체육부장 전용 출전명단 작성
+                반장 / 체육부장 / 학생자치회 출전명단 작성
               </h2>
               <p className="text-xs text-white/50 mt-1 max-w-2xl leading-relaxed">
-                각 반의 반장 및 체육부장이 라운드별 대진에 출전할 5개 종목 선수를 배정하여 Firebase DB(rosters)에 직접 제출합니다.
+                각 반의 반장·체육부장 및 학생자치회가 라운드별 대진에 출전할 5개 종목 선수를 배정하여 클라우드 DB(rosters)에 직접 제출·저장합니다.
               </p>
             </div>
           </div>
@@ -314,10 +332,10 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
             <div className="flex flex-col text-right">
               <span className="text-white/40 font-mono text-[10px]">로그인 권한</span>
               <span className="font-bold text-white">
-                {isAdmin ? '체육교사 (Admin)' : isCaptain ? '반장/체육부장 (Captain)' : '일반 학생 (조회만 가능)'}
+                {isAdmin ? '체육교사 (Admin)' : isCouncil ? '학생자치회 (Council)' : isCaptain ? '반장/체육부장 (Captain)' : '일반 학생 (조회만 가능)'}
               </span>
             </div>
-            <div className={`w-3 h-3 rounded-full ${isCaptain || isAdmin ? 'bg-[#E2FF00]' : 'bg-white/30'} shadow-[0_0_8px_currentColor]`}></div>
+            <div className={`w-3 h-3 rounded-full ${hasEditAccess ? 'bg-[#E2FF00]' : 'bg-white/30'} shadow-[0_0_8px_currentColor]`}></div>
           </div>
         </div>
       </div>

@@ -12,7 +12,7 @@ import {
   Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile, isAdminRole } from '../types';
+import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile, isAdminRole, isCouncilRole, isCaptainRole } from '../types';
 import { StorageService } from '../services/storageService';
 import { GASService } from '../services/gasService';
 import { GoogleSheetsService } from '../services/googleSheetsService';
@@ -92,6 +92,7 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
   };
 
   const isTeacher = isAdminRole(currentUser?.role);
+  const canSubmitResult = isCouncilRole(currentUser?.role) || isCaptainRole(currentUser?.role) || isTeacher;
 
   const handleDeleteResult = () => {
     if (!isTeacher || !tieMatchId || !subMatchId) return;
@@ -104,6 +105,11 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!canSubmitResult) {
+      alert('경기 결과 입력 권한이 없습니다. (학생자치회, 체육부장/반장 및 체육교사만 가능)');
+      return;
+    }
 
     const matches = StorageService.getMatches();
     const tieIdx = matches.findIndex(m => m.id === tieMatchId);
@@ -118,13 +124,17 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
       { setNumber: 1, scoreA: Number(scoreA), scoreB: Number(scoreB) }
     ];
 
+    const submitterName = currentUser?.name 
+      ? `${currentUser.name} (${isCouncilRole(currentUser.role) ? '학생자치회' : isCaptainRole(currentUser.role) ? '체육부장/반장' : '체육교사'})`
+      : '학생자치회/체육부장/교사';
+
     t.subMatches[smIdx] = {
       ...t.subMatches[smIdx],
       sets,
       winnerTeam,
       status: 'COMPLETED',
       referee,
-      recordedBy: currentUser?.name || '학생자치회',
+      recordedBy: submitterName,
       stats: {
         smashWinnersA: 0,
         smashWinnersB: 0,
@@ -164,9 +174,9 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
     StorageService.saveMatches(matches);
 
     // Auto-sync with Firebase, Google Sheets REST API & GAS
-    FirebaseService.saveMatch(t, currentUser?.name || '학생자치회/교사').catch(console.error);
+    await FirebaseService.saveMatch(t, submitterName).catch(console.error);
 
-    GoogleSheetsService.appendMatchResult(t, currentUser?.name || '학생자치회/교사').catch(err => {
+    GoogleSheetsService.appendMatchResult(t, submitterName).catch(err => {
       console.warn('Google Sheets sync notice:', err.message);
     });
     GASService.sendToGAS('MATCH_RESULT', t).catch(console.error);

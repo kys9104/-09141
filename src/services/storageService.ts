@@ -152,6 +152,43 @@ export class StorageService {
     return INITIAL_GAS_CONFIG;
   }
 
+  // ==========================================
+  // ROSTERS (LINEUPS)
+  // ==========================================
+  static getRosters(): LineupEntry[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LINEUPS);
+      if (data) return JSON.parse(data);
+    } catch (e) {
+      console.error('Failed to parse lineups', e);
+    }
+    return [];
+  }
+
+  static saveAllRosters(rosters: LineupEntry[]): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LINEUPS, JSON.stringify(rosters));
+    } catch (e) {
+      console.error('Failed to save lineups', e);
+    }
+  }
+
+  static saveRoster(entry: LineupEntry): void {
+    const list = this.getRosters();
+    const idx = list.findIndex(r => 
+      r.roundId === entry.roundId && 
+      r.grade === entry.grade && 
+      r.classNum === entry.classNum && 
+      r.category === entry.category
+    );
+    if (idx >= 0) {
+      list[idx] = entry;
+    } else {
+      list.push(entry);
+    }
+    this.saveAllRosters(list);
+  }
+
   static saveGASConfig(config: GASConfig): void {
     try {
       localStorage.setItem(STORAGE_KEYS.GAS_CONFIG, JSON.stringify(config));

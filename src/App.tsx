@@ -72,13 +72,25 @@ export default function App() {
         const firestoreMatches = await FirebaseService.getMatches();
         if (firestoreMatches && firestoreMatches.length > 0) {
           StorageService.saveMatches(firestoreMatches);
-          setRefreshKey(k => k + 1);
         }
+        const firestoreRosters = await FirebaseService.getRosters();
+        if (firestoreRosters && firestoreRosters.length > 0) {
+          StorageService.saveAllRosters(firestoreRosters);
+        }
+        setRefreshKey(k => k + 1);
       } catch (err) {
         console.warn('Initial Firebase sync note:', err);
       }
     };
     syncWithFirebase();
+
+    // Realtime subscription for matches to keep all clients synced
+    const unsubscribeMatches = FirebaseService.subscribeMatches((liveMatches) => {
+      if (liveMatches && liveMatches.length > 0) {
+        StorageService.saveMatches(liveMatches);
+        setRefreshKey(k => k + 1);
+      }
+    });
 
     // Subscribe to assigned_roles globally so student devices receive teacher grants instantly
     const unsubscribeRoles = FirebaseService.subscribeAssignedRoles((liveRoles) => {
@@ -123,6 +135,7 @@ export default function App() {
 
     return () => {
       unsubscribeRoles();
+      unsubscribeMatches();
     };
   }, []);
 

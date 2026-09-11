@@ -14,10 +14,14 @@ import {
   TieMatch, 
   MatchCategory, 
   Player, 
-  UserProfile 
+  UserProfile,
+  isCaptainRole,
+  isCouncilRole,
+  isAdminRole
 } from '../types';
 import { CATEGORIES, LEAGUE_ROUNDS } from '../data/initialData';
 import { StorageService } from '../services/storageService';
+import { FirebaseService } from '../services/firebaseService';
 import { GASService } from '../services/gasService';
 
 interface LineupSubmissionModalProps {
@@ -118,6 +122,16 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
     e.preventDefault();
     setMessage(null);
 
+    // Permission check: Captain, Council, Teacher
+    const canEdit = isCaptainRole(currentUser?.role) || isCouncilRole(currentUser?.role) || isAdminRole(currentUser?.role);
+    if (!canEdit) {
+      setMessage({
+        type: 'error',
+        text: '출전명단 작성 및 수정 권한이 없습니다. (반장/체육부장, 학생자치회 또는 체육교사만 가능)'
+      });
+      return;
+    }
+
     const freshMatches = StorageService.getMatches();
     const tieIndex = freshMatches.findIndex(m => m.id === tieMatchId);
     if (tieIndex === -1) {
@@ -171,14 +185,55 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
     freshMatches[tieIndex] = currentTie;
     StorageService.saveMatches(freshMatches);
 
+    const submitterInfo = currentUser
+      ? `${currentUser.name} (${currentUser.grade ? `${currentUser.grade}학년 ${currentUser.classNum}반 ` : ''}${currentUser.role === 'council' ? '학생자치회' : currentUser.role === 'captain' ? '체육부장/반장' : currentUser.role})`
+      : '체육부장/학생자치회';
+
+    // 1. Sync match to Firebase Firestore
+    await FirebaseService.saveMatch(currentTie, submitterInfo);
+
+    // 2. Save individual rosters for each category to Firebase & local storage
+    const categoriesToSave: Array<{ category: MatchCategory; players: Player[] }> = [
+      ...(msPlayer ? [{ category: 'MEN_SINGLES' as MatchCategory, players: [findP(msPlayer, 'M')] }] : []),
+      ...(wsPlayer ? [{ category: 'WOMEN_SINGLES' as MatchCategory, players: [findP(wsPlayer, 'F')] }] : []),
+      ...(mdPlayer1 && mdPlayer2 ? [{ category: 'MEN_DOUBLES' as MatchCategory, players: [findP(mdPlayer1, 'M'), findP(mdPlayer2, 'M')] }] : []),
+      ...(wdPlayer1 && wdPlayer2 ? [{ category: 'WOMEN_DOUBLES' as MatchCategory, players: [findP(wdPlayer1, 'F'), findP(wdPlayer2, 'F')] }] : []),
+      ...(xdPlayerM && xdPlayerF ? [{ category: 'MIXED_DOUBLES' as MatchCategory, players: [findP(xdPlayerM, 'M'), findP(xdPlayerF, 'F')] }] : [])
+    ];
+
+    for (const item of categoriesToSave) {
+      const rosterId = `roster_r${roundId}_${currentGrade}-${currentClass}_${item.category}`;
+      StorageService.saveRoster({
+        id: rosterId,
+        roundId,
+        grade: currentGrade,
+        classNum: currentClass,
+        category: item.category,
+        players: item.players,
+        submittedBy: submitterInfo,
+        submittedAt: new Date().toISOString(),
+        isLocked: false
+      });
+
+      FirebaseService.saveRoster({
+        id: rosterId,
+        roundId,
+        grade: currentGrade,
+        classNum: currentClass,
+        category: item.category,
+        players: item.players,
+        submittedBy: submitterInfo
+      }).catch(console.error);
+    }
+
     // Send async webhook to Google Apps Script
     GASService.sendToGAS('MATCH_RESULT', currentTie).catch(console.error);
 
-    setMessage({ type: 'success', text: `${currentGrade}학년 ${currentClass}반 출전 명단이 정상 저장 및 등록되었습니다!` });
+    setMessage({ type: 'success', text: `${currentGrade}학년 ${currentClass}반 출전 명단이 Firestore 및 로컬에 정상 저장 및 등록되었습니다!` });
     setTimeout(() => {
       onSaved();
       onClose();
-    }, 1000);
+    }, 900);
   };
 
   return (

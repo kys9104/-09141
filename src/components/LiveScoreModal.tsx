@@ -12,7 +12,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile, isCouncilRole, isAdminRole } from '../types';
+import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile, isCouncilRole, isCaptainRole, isAdminRole } from '../types';
 import { StorageService } from '../services/storageService';
 import { GASService } from '../services/gasService';
 import { GoogleSheetsService } from '../services/googleSheetsService';
@@ -76,7 +76,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
 
   const teamAGrade = tie.teamAGrade || tie.grade || 1;
   const teamBGrade = tie.teamBGrade || tie.grade || 1;
-  const canEditScore = isCouncilRole(currentUser?.role) || isAdminRole(currentUser?.role);
+  const canEditScore = isCouncilRole(currentUser?.role) || isCaptainRole(currentUser?.role) || isAdminRole(currentUser?.role);
 
   const addPointA = () => {
     if (!canEditScore) return;
@@ -118,7 +118,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
     }
   };
 
-  const handleSaveAndFinalize = (isFinalMatch: boolean = false) => {
+  const handleSaveAndFinalize = async (isFinalMatch: boolean = false) => {
     if (!canEditScore) return;
     const matches = StorageService.getMatches();
     const tieIdx = matches.findIndex(m => m.id === tieMatchId);
@@ -180,11 +180,15 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
     matches[tieIdx] = t;
     StorageService.saveMatches(matches);
 
+    const submitterName = currentUser?.name 
+      ? `${currentUser.name} (${isCouncilRole(currentUser.role) ? '학생자치회' : isCaptainRole(currentUser.role) ? '체육부장/반장' : '체육교사'})`
+      : '학생자치회/체육부장/교사';
+
     // Auto-sync to Firebase, Google Sheets REST API & GAS
-    FirebaseService.saveMatch(t, currentUser?.name || '학생자치회').catch(console.error);
+    await FirebaseService.saveMatch(t, submitterName).catch(console.error);
 
     if (isMatchDone) {
-      GoogleSheetsService.appendMatchResult(t, currentUser?.name || '학생자치회/교사').catch(err => {
+      GoogleSheetsService.appendMatchResult(t, submitterName).catch(err => {
         console.warn('Google Sheets sync notice:', err.message);
       });
     }
@@ -234,12 +238,12 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
           </button>
         </div>
 
-        {/* Permission Notice Banner for Non-Student Council */}
+        {/* Permission Notice Banner for Non-Authorized */}
         {!canEditScore ? (
           <div className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between text-xs text-amber-300">
             <div className="flex items-center gap-2 font-medium">
               <span className="font-bold">⚠️ [조회 전용]</span>
-              <span>실시간 스코어 및 경기 결과 입력 권한은 <strong>학생자치회</strong> 학생에게만 부여되어 있습니다.</span>
+              <span>실시간 스코어 및 경기 결과 입력 권한은 <strong>학생자치회, 체육부장/반장 및 체육교사</strong>에게 부여되어 있습니다.</span>
             </div>
             {onOpenLogin && (
               <button
@@ -249,7 +253,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
                 }}
                 className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold transition whitespace-nowrap ml-2"
               >
-                학생자치회 로그인
+                권한 로그인
               </button>
             )}
           </div>
@@ -257,7 +261,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
           <div className="px-6 py-2 bg-[#E2FF00]/10 border-b border-[#E2FF00]/20 flex items-center justify-between text-xs text-[#E2FF00] font-mono">
             <span className="flex items-center gap-1.5 font-bold">
               <ShieldCheck className="w-4 h-4 text-[#E2FF00]" />
-              학생자치회 기록원 입력 권한 활성화됨 ({currentUser?.name})
+              기록원 입력 권한 활성화됨 ({currentUser?.name}) [{isCouncilRole(currentUser?.role) ? '학생자치회' : isCaptainRole(currentUser?.role) ? '체육부장/반장' : '체육교사'}]
             </span>
             <span className="text-[11px] text-white/50">실시간 스코어 및 MVP 저장 가능</span>
           </div>
