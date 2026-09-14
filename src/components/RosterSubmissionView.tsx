@@ -68,12 +68,21 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
   }, [selectedGrade, selectedClass, selectedRound]);
 
   const loadExistingRoster = async () => {
+    let ms = '';
+    let ws = '';
+    let md1 = '';
+    let md2 = '';
+    let wd1 = '';
+    let wd2 = '';
+    let xdM = '';
+    let xdF = '';
+
     // 1. Try to find match in StorageService
     const matches = StorageService.getMatches();
     const tie = matches.find(m => 
       m.roundId === selectedRound && 
-      ((m.teamAGrade === selectedGrade && m.teamAClass === selectedClass) || 
-       (m.teamBGrade === selectedGrade && m.teamBClass === selectedClass))
+      (((m.teamAGrade || m.grade) === selectedGrade && m.teamAClass === selectedClass) || 
+       ((m.teamBGrade || m.grade) === selectedGrade && m.teamBClass === selectedClass))
     );
 
     if (tie) {
@@ -81,24 +90,54 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
       
       tie.subMatches.forEach(sm => {
         const players = isTeamA ? sm.teamAPlayers : sm.teamBPlayers;
-        if (sm.category === 'MEN_SINGLES') setMsPlayer(players[0]?.name || '');
-        if (sm.category === 'WOMEN_SINGLES') setWsPlayer(players[0]?.name || '');
+        if (sm.category === 'MEN_SINGLES' && players[0]) ms = players[0].name;
+        if (sm.category === 'WOMEN_SINGLES' && players[0]) ws = players[0].name;
         if (sm.category === 'MEN_DOUBLES') {
-          setMdPlayer1(players[0]?.name || '');
-          setMdPlayer2(players[1]?.name || '');
+          if (players[0]) md1 = players[0].name;
+          if (players[1]) md2 = players[1].name;
         }
         if (sm.category === 'WOMEN_DOUBLES') {
-          setWdPlayer1(players[0]?.name || '');
-          setWdPlayer2(players[1]?.name || '');
+          if (players[0]) wd1 = players[0].name;
+          if (players[1]) wd2 = players[1].name;
         }
         if (sm.category === 'MIXED_DOUBLES') {
-          setXdPlayerM(players[0]?.name || '');
-          setXdPlayerF(players[1]?.name || '');
+          if (players[0]) xdM = players[0].name;
+          if (players[1]) xdF = players[1].name;
         }
       });
     }
 
-    // 2. Load submitted rosters from Firebase
+    // 2. Also check StorageService.getRosters() in case individual entries exist
+    const localRosters = StorageService.getRosters().filter(r => 
+      r.roundId === selectedRound && r.grade === selectedGrade && r.classNum === selectedClass
+    );
+    localRosters.forEach(r => {
+      if (r.category === 'MEN_SINGLES' && r.players && r.players[0]) ms = r.players[0].name;
+      if (r.category === 'WOMEN_SINGLES' && r.players && r.players[0]) ws = r.players[0].name;
+      if (r.category === 'MEN_DOUBLES' && r.players) {
+        if (r.players[0]) md1 = r.players[0].name;
+        if (r.players[1]) md2 = r.players[1].name;
+      }
+      if (r.category === 'WOMEN_DOUBLES' && r.players) {
+        if (r.players[0]) wd1 = r.players[0].name;
+        if (r.players[1]) wd2 = r.players[1].name;
+      }
+      if (r.category === 'MIXED_DOUBLES' && r.players) {
+        if (r.players[0]) xdM = r.players[0].name;
+        if (r.players[1]) xdF = r.players[1].name;
+      }
+    });
+
+    setMsPlayer(ms);
+    setWsPlayer(ws);
+    setMdPlayer1(md1);
+    setMdPlayer2(md2);
+    setWdPlayer1(wd1);
+    setWdPlayer2(wd2);
+    setXdPlayerM(xdM);
+    setXdPlayerF(xdF);
+
+    // 3. Load submitted rosters from Firebase
     try {
       const firestoreRosters = await FirebaseService.getRosters();
       setSubmittedRostersList(firestoreRosters);
@@ -142,9 +181,9 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
       return;
     }
 
-    // Validation
-    if (!msPlayer || !wsPlayer) {
-      setStatusMessage({ type: 'error', text: '남자 단식 및 여자 단식 선수를 모두 지정해야 합니다.' });
+    // Validation: Require at least 1 category to be selected
+    if (!msPlayer && !wsPlayer && !mdPlayer1 && !wdPlayer1 && !xdPlayerM) {
+      setStatusMessage({ type: 'error', text: '최소 1개 이상의 종목에 출전 선수를 선택해주세요.' });
       return;
     }
     if ((mdPlayer1 && !mdPlayer2) || (!mdPlayer1 && mdPlayer2)) {
@@ -191,14 +230,14 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
 
       // 1. Save to Firebase 'rosters' collection & StorageService for each active category
       const categoriesToSave: Array<{ category: MatchCategory; players: Player[] }> = [
-        { category: 'MEN_SINGLES', players: [findStudentObj(msPlayer, 'M')] },
-        { category: 'WOMEN_SINGLES', players: [findStudentObj(wsPlayer, 'F')] },
+        ...(msPlayer ? [{ category: 'MEN_SINGLES' as MatchCategory, players: [findStudentObj(msPlayer, 'M')] }] : []),
+        ...(wsPlayer ? [{ category: 'WOMEN_SINGLES' as MatchCategory, players: [findStudentObj(wsPlayer, 'F')] }] : []),
         ...(mdPlayer1 && mdPlayer2 ? [{ category: 'MEN_DOUBLES' as MatchCategory, players: [findStudentObj(mdPlayer1, 'M'), findStudentObj(mdPlayer2, 'M')] }] : []),
         ...(wdPlayer1 && wdPlayer2 ? [{ category: 'WOMEN_DOUBLES' as MatchCategory, players: [findStudentObj(wdPlayer1, 'F'), findStudentObj(wdPlayer2, 'F')] }] : []),
         ...(xdPlayerM && xdPlayerF ? [{ category: 'MIXED_DOUBLES' as MatchCategory, players: [findStudentObj(xdPlayerM, 'M'), findStudentObj(xdPlayerF, 'F')] }] : [])
       ];
 
-      for (const item of categoriesToSave) {
+      await Promise.all(categoriesToSave.map(item => {
         const rosterId = `roster_r${selectedRound}_${selectedGrade}-${selectedClass}_${item.category}`;
         const rosterEntry = {
           id: rosterId,
@@ -213,7 +252,7 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
         };
         StorageService.saveRoster(rosterEntry);
 
-        await FirebaseService.saveRoster({
+        return FirebaseService.saveRoster({
           id: rosterId,
           roundId: selectedRound,
           grade: selectedGrade,
@@ -222,26 +261,29 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
           players: item.players,
           submittedBy: submitterInfo
         });
-      }
+      }));
 
       // 2. Update local match tie object & sync to Firestore matches
       const matches = StorageService.getMatches();
       const tieIndex = matches.findIndex(m => 
         m.roundId === selectedRound && 
-        ((m.teamAGrade === selectedGrade && m.teamAClass === selectedClass) || 
-         (m.teamBGrade === selectedGrade && m.teamBClass === selectedClass))
+        (((m.teamAGrade || m.grade) === selectedGrade && m.teamAClass === selectedClass) || 
+         ((m.teamBGrade || m.grade) === selectedGrade && m.teamBClass === selectedClass))
       );
 
       if (tieIndex !== -1) {
-        const tie = { ...matches[tieIndex] };
+        const tie = { 
+          ...matches[tieIndex],
+          subMatches: matches[tieIndex].subMatches.map(sm => ({ ...sm }))
+        };
         const isTeamA = (tie.teamAGrade || tie.grade) === selectedGrade && tie.teamAClass === selectedClass;
 
         tie.subMatches.forEach(sm => {
-          if (sm.category === 'MEN_SINGLES') {
+          if (sm.category === 'MEN_SINGLES' && msPlayer) {
             const p = [findStudentObj(msPlayer, 'M')];
             if (isTeamA) sm.teamAPlayers = p; else sm.teamBPlayers = p;
           }
-          if (sm.category === 'WOMEN_SINGLES') {
+          if (sm.category === 'WOMEN_SINGLES' && wsPlayer) {
             const p = [findStudentObj(wsPlayer, 'F')];
             if (isTeamA) sm.teamAPlayers = p; else sm.teamBPlayers = p;
           }

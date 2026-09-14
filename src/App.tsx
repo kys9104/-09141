@@ -92,6 +92,14 @@ export default function App() {
       }
     });
 
+    // Realtime subscription for rosters so team lineups sync seamlessly
+    const unsubscribeRosters = FirebaseService.subscribeRosters((liveRosters) => {
+      if (liveRosters && liveRosters.length > 0) {
+        StorageService.saveAllRosters(liveRosters);
+        setRefreshKey(k => k + 1);
+      }
+    });
+
     // Subscribe to assigned_roles globally so student devices receive teacher grants instantly
     const unsubscribeRoles = FirebaseService.subscribeAssignedRoles((liveRoles) => {
       const localList = liveRoles.map(item => ({
@@ -136,6 +144,7 @@ export default function App() {
     return () => {
       unsubscribeRoles();
       unsubscribeMatches();
+      unsubscribeRosters();
     };
   }, []);
 
@@ -227,10 +236,9 @@ export default function App() {
           <StatsMvpView key={`stats-${refreshKey}`} />
         )}
 
-        {/* TAB 4: ROSTER SUBMISSION (Captain & Teacher Exclusive) */}
+        {/* TAB 4: ROSTER SUBMISSION (Captain, Council & Teacher) */}
         {activeTab === 'ROSTER_SUBMIT' && (
           <RosterSubmissionView
-            key={`roster-${refreshKey}`}
             currentUser={currentUser}
             onRosterUpdated={triggerRefresh}
           />

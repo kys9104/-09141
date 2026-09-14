@@ -37,10 +37,34 @@ export interface AssignedRoleRecord {
 }
 
 export class StorageService {
+  /**
+   * Always merges incoming matches with INITIAL_TIE_MATCHES so no rounds/matches are lost
+   */
+  static mergeMatchesWithInitial(incomingMatches: TieMatch[]): TieMatch[] {
+    if (!incomingMatches || !Array.isArray(incomingMatches) || incomingMatches.length === 0) {
+      return INITIAL_TIE_MATCHES;
+    }
+    return INITIAL_TIE_MATCHES.map(baseMatch => {
+      const found = incomingMatches.find(m => m.id === baseMatch.id);
+      if (!found) return baseMatch;
+      return {
+        ...baseMatch,
+        ...found,
+        subMatches: baseMatch.subMatches.map(baseSm => {
+          const foundSm = found.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
+          return foundSm ? { ...baseSm, ...foundSm } : baseSm;
+        })
+      };
+    });
+  }
+
   static getMatches(): TieMatch[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.TIE_MATCHES);
-      if (data) return JSON.parse(data);
+      if (data) {
+        const parsed = JSON.parse(data);
+        return this.mergeMatchesWithInitial(parsed);
+      }
     } catch (e) {
       console.error('Failed to parse matches from localStorage', e);
     }
@@ -49,7 +73,8 @@ export class StorageService {
 
   static saveMatches(matches: TieMatch[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.TIE_MATCHES, JSON.stringify(matches));
+      const merged = this.mergeMatchesWithInitial(matches);
+      localStorage.setItem(STORAGE_KEYS.TIE_MATCHES, JSON.stringify(merged));
     } catch (e) {
       console.error('Failed to save matches', e);
     }
@@ -232,18 +257,30 @@ export class StorageService {
   }
 
   static getStudents(grade: GradeLevel, classNum: number): Player[] {
+    const key = `${grade}-${classNum}`;
+    const defaultList = SAMPLE_STUDENTS[key] || [];
     try {
       const custom = localStorage.getItem(STORAGE_KEYS.CUSTOM_STUDENTS);
       if (custom) {
         const parsed = JSON.parse(custom);
-        const key = `${grade}-${classNum}`;
-        if (parsed[key]) return parsed[key];
+        if (parsed[key] && Array.isArray(parsed[key])) {
+          // Merge with official list so that official roster corrections (e.g. 1-1 #4 김현지 여학생) always take precedence
+          return parsed[key].map((p: Player) => {
+            const official = defaultList.find(d => d.studentNum === p.studentNum);
+            if (official) {
+              return { ...p, gender: official.gender, name: official.name };
+            }
+            if (grade === 1 && classNum === 1 && p.studentNum === 4) {
+              return { ...p, gender: 'F' as const, name: '김현지' };
+            }
+            return p;
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to parse custom students', e);
     }
-    const key = `${grade}-${classNum}`;
-    return SAMPLE_STUDENTS[key] || [];
+    return defaultList;
   }
 
   /**

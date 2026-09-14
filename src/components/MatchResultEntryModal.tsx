@@ -203,7 +203,7 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                학생자치회 / 교사 경기 결과 입력
+                경기 결과 입력 (학생자치회 / 체육부장 / 교사)
               </h2>
               <p className="text-xs text-[#E2FF00] font-mono">
                 {teamAGrade}학년 {tie.teamAClass}반 vs {teamBGrade}학년 {tie.teamBClass}반 • {subMatch.category} (단판 15점)

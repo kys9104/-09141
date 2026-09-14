@@ -443,6 +443,7 @@ export class FirebaseService {
     try {
       const rostersRef = collection(db, 'rosters');
       const snap = await getDocs(rostersRef);
+      if (snap.empty) return [];
       const list: LineupEntry[] = [];
       snap.forEach(d => {
         list.push(d.data() as LineupEntry);
@@ -451,6 +452,28 @@ export class FirebaseService {
     } catch (e) {
       console.warn('Firebase getRosters error:', e);
       return [];
+    }
+  }
+
+  /**
+   * Realtime subscription for rosters collection
+   */
+  static subscribeRosters(callback: (rosters: LineupEntry[]) => void): () => void {
+    try {
+      const q = collection(db, 'rosters');
+      return onSnapshot(q, (snap) => {
+        if (snap.empty) return;
+        const list: LineupEntry[] = [];
+        snap.forEach(d => {
+          list.push(d.data() as LineupEntry);
+        });
+        callback(list);
+      }, (err) => {
+        console.warn('Error subscribing to rosters:', err);
+      });
+    } catch (e) {
+      console.warn('Error initiating rosters subscription:', e);
+      return () => {};
     }
   }
 

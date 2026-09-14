@@ -77,7 +77,9 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
 
   const isTeacher = isAdminRole(currentUser?.role);
   const isStudentCouncil = isCouncilRole(currentUser?.role);
-  const isSportsRep = isCaptainRole(currentUser?.role) || isTeacher;
+  const isSportsRep = isCaptainRole(currentUser?.role);
+  const canManageLineup = isSportsRep || isStudentCouncil || isTeacher;
+  const canEnterResults = isSportsRep || isStudentCouncil || isTeacher;
 
   const handleDeleteExecute = () => {
     if (!isTeacher || !deleteConfirmModal) return;
@@ -195,9 +197,9 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
           </div>
         </div>
 
-        {/* Action Button for Sports Rep / Teacher */}
+        {/* Action Button for Sports Rep / Council / Teacher */}
         <div className="flex items-center gap-2">
-          {(isSportsRep || isTeacher) && currentTieMatches.length > 0 && (
+          {canManageLineup && currentTieMatches.length > 0 && (
             <button
               onClick={() => onOpenLineupModal(currentTieMatches[0].id, currentRound.id)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#E2FF00] hover:bg-[#d0ea00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)] transition"
@@ -286,7 +288,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                       </span>
                     )}
 
-                    {(isSportsRep || isTeacher) && (
+                    {canManageLineup && (
                       <button
                         onClick={() => onOpenLineupModal(tie.id, tie.roundId)}
                         className="px-3 py-1 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition"
@@ -426,7 +428,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                             <span>LIVE SCOREBOARD</span>
                           </button>
 
-                          {(isStudentCouncil || isTeacher) && (
+                          {canEnterResults && (
                             <button
                               onClick={() => onOpenResultEntryModal(tie.id, sm.id)}
                               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition flex items-center justify-center gap-1"

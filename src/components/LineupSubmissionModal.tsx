@@ -201,7 +201,7 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
       ...(xdPlayerM && xdPlayerF ? [{ category: 'MIXED_DOUBLES' as MatchCategory, players: [findP(xdPlayerM, 'M'), findP(xdPlayerF, 'F')] }] : [])
     ];
 
-    for (const item of categoriesToSave) {
+    await Promise.all(categoriesToSave.map(item => {
       const rosterId = `roster_r${roundId}_${currentGrade}-${currentClass}_${item.category}`;
       StorageService.saveRoster({
         id: rosterId,
@@ -215,7 +215,7 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
         isLocked: false
       });
 
-      FirebaseService.saveRoster({
+      return FirebaseService.saveRoster({
         id: rosterId,
         roundId,
         grade: currentGrade,
@@ -223,8 +223,8 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
         category: item.category,
         players: item.players,
         submittedBy: submitterInfo
-      }).catch(console.error);
-    }
+      });
+    }));
 
     // Send async webhook to Google Apps Script
     GASService.sendToGAS('MATCH_RESULT', currentTie).catch(console.error);
