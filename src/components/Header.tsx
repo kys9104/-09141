@@ -75,10 +75,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'STANDINGS', label: '리그 순위표', icon: Trophy },
     { id: 'SCHEDULE', label: '경기 일정 / 결과', icon: Calendar },
     { id: 'STATS', label: '학급별 종합 경기 지표', icon: BarChart3 },
-    // Captain, Council & Admin: 출전명단 작성
-    ...((isCaptain || isAdmin || isCouncil) ? [
-      { id: 'ROSTER_SUBMIT', label: '출전명단 작성', icon: ClipboardList, highlightCaptain: true }
-    ] : []),
+    { id: 'ROSTER_SUBMIT', label: '출전명단 작성', icon: ClipboardList, highlightCaptain: isCaptain || isCouncil },
     // Admin only or always visible with teacher badge
     { id: 'TEACHER', label: '교사 관리자 대시보드', icon: ShieldCheck, highlightAdmin: true }
   ];

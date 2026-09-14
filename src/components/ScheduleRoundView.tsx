@@ -197,15 +197,15 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
           </div>
         </div>
 
-        {/* Action Button for Sports Rep / Council / Teacher */}
+        {/* Action Button for Lineup Submission */}
         <div className="flex items-center gap-2">
-          {canManageLineup && currentTieMatches.length > 0 && (
+          {currentTieMatches.length > 0 && (
             <button
               onClick={() => onOpenLineupModal(currentTieMatches[0].id, currentRound.id)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#E2FF00] hover:bg-[#d0ea00] text-black shadow-[0_0_12px_rgba(226,255,0,0.3)] transition"
             >
               <UserCheck className="w-4 h-4 text-black" />
-              <span>출전명단 작성</span>
+              <span>제{currentRound.id}라운드 출전명단 작성</span>
             </button>
           )}
         </div>
@@ -288,14 +288,13 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                       </span>
                     )}
 
-                    {canManageLineup && (
-                      <button
-                        onClick={() => onOpenLineupModal(tie.id, tie.roundId)}
-                        className="px-3 py-1 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition"
-                      >
-                        출전명단 작성
-                      </button>
-                    )}
+                    <button
+                      onClick={() => onOpenLineupModal(tie.id, tie.roundId)}
+                      className="px-3 py-1 rounded-lg text-xs font-semibold bg-[#E2FF00]/10 hover:bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30 transition flex items-center gap-1.5"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>출전명단 작성</span>
+                    </button>
 
                     {/* Teacher-only: Reset entire tie match results */}
                     {isTeacher && (tie.status === 'COMPLETED' || tie.subMatches.some(s => s.status === 'COMPLETED')) && (

@@ -52,7 +52,15 @@ export class StorageService {
         ...found,
         subMatches: baseMatch.subMatches.map(baseSm => {
           const foundSm = found.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
-          return foundSm ? { ...baseSm, ...foundSm } : baseSm;
+          if (!foundSm) return baseSm;
+          const mergedTeamA = (foundSm.teamAPlayers && foundSm.teamAPlayers.length > 0) ? foundSm.teamAPlayers : (baseSm.teamAPlayers || []);
+          const mergedTeamB = (foundSm.teamBPlayers && foundSm.teamBPlayers.length > 0) ? foundSm.teamBPlayers : (baseSm.teamBPlayers || []);
+          return {
+            ...baseSm,
+            ...foundSm,
+            teamAPlayers: mergedTeamA,
+            teamBPlayers: mergedTeamB
+          };
         })
       };
     });
@@ -60,11 +68,65 @@ export class StorageService {
 
   static getMatches(): TieMatch[] {
     try {
+      let matches = INITIAL_TIE_MATCHES;
       const data = localStorage.getItem(STORAGE_KEYS.TIE_MATCHES);
       if (data) {
         const parsed = JSON.parse(data);
-        return this.mergeMatchesWithInitial(parsed);
+        matches = this.mergeMatchesWithInitial(parsed);
       }
+
+      // Auto-hydrate matches with any submitted rosters from STORAGE_KEYS.LINEUPS
+      const rosters = this.getRosters();
+      if (rosters && rosters.length > 0) {
+        matches = matches.map(tie => {
+          const teamAGrade = tie.teamAGrade || tie.grade || 1;
+          const teamBGrade = tie.teamBGrade || tie.grade || 1;
+          let hasAnyLineup = false;
+
+          const updatedSubMatches = tie.subMatches.map(sm => {
+            let teamAPlayers = sm.teamAPlayers && sm.teamAPlayers.length > 0 ? [...sm.teamAPlayers] : [];
+            let teamBPlayers = sm.teamBPlayers && sm.teamBPlayers.length > 0 ? [...sm.teamBPlayers] : [];
+
+            // Find roster for Team A
+            const rosterA = rosters.find(r => 
+              r.roundId === tie.roundId && 
+              r.grade === teamAGrade && 
+              r.classNum === tie.teamAClass && 
+              r.category === sm.category
+            );
+            if (rosterA && rosterA.players && rosterA.players.length > 0) {
+              teamAPlayers = rosterA.players;
+              hasAnyLineup = true;
+            }
+
+            // Find roster for Team B
+            const rosterB = rosters.find(r => 
+              r.roundId === tie.roundId && 
+              r.grade === teamBGrade && 
+              r.classNum === tie.teamBClass && 
+              r.category === sm.category
+            );
+            if (rosterB && rosterB.players && rosterB.players.length > 0) {
+              teamBPlayers = rosterB.players;
+              hasAnyLineup = true;
+            }
+
+            return {
+              ...sm,
+              teamAPlayers,
+              teamBPlayers
+            };
+          });
+
+          return {
+            ...tie,
+            subMatches: updatedSubMatches,
+            status: (hasAnyLineup && tie.status === 'PENDING_LINEUP') ? 'READY_TO_PLAY' : tie.status
+          };
+        });
+      }
+
+      return matches;
     } catch (e) {
       console.error('Failed to parse matches from localStorage', e);
     }
@@ -119,7 +181,18 @@ export class StorageService {
 
   static saveAssignedRoles(roles: AssignedRoleRecord[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.ASSIGNED_ROLES, JSON.stringify(roles));
+      if (!roles || roles.length === 0) return;
+      const current = this.getAssignedRoles();
+      const map = new Map<string, AssignedRoleRecord>();
+      current.forEach(r => {
+        const key = `${r.grade}-${r.classNum}-${r.studentNum}`;
+        map.set(key, r);
+      });
+      roles.forEach(r => {
+        const key = `${r.grade}-${r.classNum}-${r.studentNum}`;
+        map.set(key, r);
+      });
+      localStorage.setItem(STORAGE_KEYS.ASSIGNED_ROLES, JSON.stringify(Array.from(map.values())));
     } catch (e) {
       console.error('Failed to save assigned roles', e);
     }
@@ -127,13 +200,22 @@ export class StorageService {
 
   static setAssignedRole(record: AssignedRoleRecord): void {
     const roles = this.getAssignedRoles();
-    const existingIndex = roles.findIndex(r => r.id === record.id);
+    const existingIndex = roles.findIndex(r => 
+      r.id === record.id || 
+      (Number(r.grade) === Number(record.grade) && 
+       Number(r.classNum) === Number(record.classNum) && 
+       Number(r.studentNum) === Number(record.studentNum))
+    );
     if (existingIndex >= 0) {
       roles[existingIndex] = record;
     } else {
       roles.push(record);
     }
-    this.saveAssignedRoles(roles);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ASSIGNED_ROLES, JSON.stringify(roles));
+    } catch (e) {
+      console.error('Failed to save assigned roles in setAssignedRole', e);
+    }
 
     // If role is captain, also sync with sports representative
     if (record.role === 'captain') {
@@ -145,11 +227,15 @@ export class StorageService {
     const roles = this.getAssignedRoles().filter(r => {
       if (r.id === id) return false;
       if (grade !== undefined && classNum !== undefined && studentNum !== undefined) {
-        if (r.grade === grade && r.classNum === classNum && r.studentNum === studentNum) return false;
+        if (Number(r.grade) === Number(grade) && Number(r.classNum) === Number(classNum) && Number(r.studentNum) === Number(studentNum)) return false;
       }
       return true;
     });
-    this.saveAssignedRoles(roles);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ASSIGNED_ROLES, JSON.stringify(roles));
+    } catch (e) {
+      console.error('Failed to save assigned roles after removal', e);
+    }
 
     // If grade and classNum provided, clean up sports representative as well
     if (grade && classNum) {
@@ -164,7 +250,11 @@ export class StorageService {
 
   static findAssignedRole(grade: GradeLevel, classNum: number, studentNum: number): AssignedRoleRecord | undefined {
     const roles = this.getAssignedRoles();
-    return roles.find(r => r.grade === grade && r.classNum === classNum && r.studentNum === studentNum);
+    return roles.find(r => 
+      Number(r.grade) === Number(grade) && 
+      Number(r.classNum) === Number(classNum) && 
+      Number(r.studentNum) === Number(studentNum)
+    );
   }
 
   static getGASConfig(): GASConfig {
@@ -192,7 +282,12 @@ export class StorageService {
 
   static saveAllRosters(rosters: LineupEntry[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.LINEUPS, JSON.stringify(rosters));
+      if (!rosters || rosters.length === 0) return;
+      const current = this.getRosters();
+      const map = new Map<string, LineupEntry>();
+      current.forEach(r => map.set(`${r.roundId}_${r.grade}_${r.classNum}_${r.category}`, r));
+      rosters.forEach(r => map.set(`${r.roundId}_${r.grade}_${r.classNum}_${r.category}`, r));
+      localStorage.setItem(STORAGE_KEYS.LINEUPS, JSON.stringify(Array.from(map.values())));
     } catch (e) {
       console.error('Failed to save lineups', e);
     }
@@ -211,7 +306,11 @@ export class StorageService {
     } else {
       list.push(entry);
     }
-    this.saveAllRosters(list);
+    try {
+      localStorage.setItem(STORAGE_KEYS.LINEUPS, JSON.stringify(list));
+    } catch (e) {
+      console.error('Failed to save single roster', e);
+    }
   }
 
   static saveGASConfig(config: GASConfig): void {

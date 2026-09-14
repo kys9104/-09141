@@ -229,13 +229,19 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
         : '체육부장/학생자치회';
 
       // 1. Save to Firebase 'rosters' collection & StorageService for each active category
+      const msList = msPlayer ? [findStudentObj(msPlayer, 'M')] : [];
+      const wsList = wsPlayer ? [findStudentObj(wsPlayer, 'F')] : [];
+      const mdList = [mdPlayer1 ? findStudentObj(mdPlayer1, 'M') : null, mdPlayer2 ? findStudentObj(mdPlayer2, 'M') : null].filter(Boolean) as Player[];
+      const wdList = [wdPlayer1 ? findStudentObj(wdPlayer1, 'F') : null, wdPlayer2 ? findStudentObj(wdPlayer2, 'F') : null].filter(Boolean) as Player[];
+      const xdList = [xdPlayerM ? findStudentObj(xdPlayerM, 'M') : null, xdPlayerF ? findStudentObj(xdPlayerF, 'F') : null].filter(Boolean) as Player[];
+
       const categoriesToSave: Array<{ category: MatchCategory; players: Player[] }> = [
-        ...(msPlayer ? [{ category: 'MEN_SINGLES' as MatchCategory, players: [findStudentObj(msPlayer, 'M')] }] : []),
-        ...(wsPlayer ? [{ category: 'WOMEN_SINGLES' as MatchCategory, players: [findStudentObj(wsPlayer, 'F')] }] : []),
-        ...(mdPlayer1 && mdPlayer2 ? [{ category: 'MEN_DOUBLES' as MatchCategory, players: [findStudentObj(mdPlayer1, 'M'), findStudentObj(mdPlayer2, 'M')] }] : []),
-        ...(wdPlayer1 && wdPlayer2 ? [{ category: 'WOMEN_DOUBLES' as MatchCategory, players: [findStudentObj(wdPlayer1, 'F'), findStudentObj(wdPlayer2, 'F')] }] : []),
-        ...(xdPlayerM && xdPlayerF ? [{ category: 'MIXED_DOUBLES' as MatchCategory, players: [findStudentObj(xdPlayerM, 'M'), findStudentObj(xdPlayerF, 'F')] }] : [])
-      ];
+        { category: 'MEN_SINGLES' as MatchCategory, players: msList },
+        { category: 'WOMEN_SINGLES' as MatchCategory, players: wsList },
+        { category: 'MEN_DOUBLES' as MatchCategory, players: mdList },
+        { category: 'WOMEN_DOUBLES' as MatchCategory, players: wdList },
+        { category: 'MIXED_DOUBLES' as MatchCategory, players: xdList }
+      ].filter(item => item.players.length > 0);
 
       await Promise.all(categoriesToSave.map(item => {
         const rosterId = `roster_r${selectedRound}_${selectedGrade}-${selectedClass}_${item.category}`;
@@ -279,25 +285,20 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
         const isTeamA = (tie.teamAGrade || tie.grade) === selectedGrade && tie.teamAClass === selectedClass;
 
         tie.subMatches.forEach(sm => {
-          if (sm.category === 'MEN_SINGLES' && msPlayer) {
-            const p = [findStudentObj(msPlayer, 'M')];
-            if (isTeamA) sm.teamAPlayers = p; else sm.teamBPlayers = p;
+          if (sm.category === 'MEN_SINGLES') {
+            if (isTeamA) sm.teamAPlayers = msList; else sm.teamBPlayers = msList;
           }
-          if (sm.category === 'WOMEN_SINGLES' && wsPlayer) {
-            const p = [findStudentObj(wsPlayer, 'F')];
-            if (isTeamA) sm.teamAPlayers = p; else sm.teamBPlayers = p;
+          if (sm.category === 'WOMEN_SINGLES') {
+            if (isTeamA) sm.teamAPlayers = wsList; else sm.teamBPlayers = wsList;
           }
-          if (sm.category === 'MEN_DOUBLES' && mdPlayer1 && mdPlayer2) {
-            const p = [findStudentObj(mdPlayer1, 'M'), findStudentObj(mdPlayer2, 'M')];
-            if (isTeamA) sm.teamAPlayers = p; else sm.teamBPlayers = p;
+          if (sm.category === 'MEN_DOUBLES') {
+            if (isTeamA) sm.teamAPlayers = mdList; else sm.teamBPlayers = mdList;
           }
-          if (sm.category === 'WOMEN_DOUBLES' && wdPlayer1 && wdPlayer2) {
-            const p = [findStudentObj(wdPlayer1, 'F'), findStudentObj(wdPlayer2, 'F')];
-            if (isTeamA) sm.teamAPlayers = p; else sm.teamBPlayers = p;
+          if (sm.category === 'WOMEN_DOUBLES') {
+            if (isTeamA) sm.teamAPlayers = wdList; else sm.teamBPlayers = wdList;
           }
-          if (sm.category === 'MIXED_DOUBLES' && xdPlayerM && xdPlayerF) {
-            const p = [findStudentObj(xdPlayerM, 'M'), findStudentObj(xdPlayerF, 'F')];
-            if (isTeamA) sm.teamAPlayers = p; else sm.teamBPlayers = p;
+          if (sm.category === 'MIXED_DOUBLES') {
+            if (isTeamA) sm.teamAPlayers = xdList; else sm.teamBPlayers = xdList;
           }
         });
 

@@ -49,7 +49,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [targetStudentNum, setTargetStudentNum] = useState<number>(1);
   const [targetRole, setTargetRole] = useState<'captain' | 'council'>('council');
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'captain' | 'council'>('ALL');
-  const [assignedRolesList, setAssignedRolesList] = useState<RoleAssignment[]>([]);
+  const [assignedRolesList, setAssignedRolesList] = useState<RoleAssignment[]>(() => StorageService.getAssignedRoles());
   const [isAssigningRole, setIsAssigningRole] = useState<boolean>(false);
   const [roleMsg, setRoleMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -63,6 +63,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [isSavingGas, setIsSavingGas] = useState<boolean>(false);
   const [gasTestMsg, setGasTestMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
+
+  // Keep isAuthenticated in sync if currentUser changes to admin
+  useEffect(() => {
+    if (isAdminRole(currentUser?.role)) {
+      setIsAuthenticated(true);
+    }
+  }, [currentUser]);
 
   // Load students for current class
   const classStudents = StorageService.getStudents(targetGrade, targetClass);
@@ -82,18 +89,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
     // Subscribe to Firestore assigned_roles changes in real-time
     const unsubscribe = FirebaseService.subscribeAssignedRoles((liveRoles) => {
-      setAssignedRolesList(liveRoles);
-      const localList: AssignedRoleRecord[] = liveRoles.map(item => ({
-        id: item.id,
-        grade: item.grade,
-        classNum: item.classNum,
-        studentNum: item.studentNum,
-        name: item.name,
-        role: item.role,
-        assignedAt: item.assignedAt,
-        assignedBy: item.assignedBy
-      }));
-      StorageService.saveAssignedRoles(localList);
+      if (liveRoles && liveRoles.length > 0) {
+        setAssignedRolesList(liveRoles);
+        const localList: AssignedRoleRecord[] = liveRoles.map(item => ({
+          id: item.id,
+          grade: item.grade,
+          classNum: item.classNum,
+          studentNum: item.studentNum,
+          name: item.name,
+          role: item.role,
+          assignedAt: item.assignedAt,
+          assignedBy: item.assignedBy
+        }));
+        StorageService.saveAssignedRoles(localList);
+      }
     });
 
     return () => {
@@ -104,31 +113,29 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const loadAssignedRoles = async () => {
     try {
       const list = await FirebaseService.getAssignedRoles();
-      setAssignedRolesList(list);
-      const localList: AssignedRoleRecord[] = list.map(item => ({
-        id: item.id,
-        grade: item.grade,
-        classNum: item.classNum,
-        studentNum: item.studentNum,
-        name: item.name,
-        role: item.role,
-        assignedAt: item.assignedAt,
-        assignedBy: item.assignedBy
-      }));
-      StorageService.saveAssignedRoles(localList);
+      if (list && list.length > 0) {
+        setAssignedRolesList(list);
+        const localList: AssignedRoleRecord[] = list.map(item => ({
+          id: item.id,
+          grade: item.grade,
+          classNum: item.classNum,
+          studentNum: item.studentNum,
+          name: item.name,
+          role: item.role,
+          assignedAt: item.assignedAt,
+          assignedBy: item.assignedBy
+        }));
+        StorageService.saveAssignedRoles(localList);
+      } else {
+        const local = StorageService.getAssignedRoles();
+        if (local.length > 0) {
+          setAssignedRolesList(local);
+        }
+      }
     } catch (e) {
       console.warn('Error loading roles:', e);
       const localRoles = StorageService.getAssignedRoles();
-      setAssignedRolesList(localRoles.map(r => ({
-        id: r.id,
-        grade: r.grade,
-        classNum: r.classNum,
-        studentNum: r.studentNum,
-        name: r.name,
-        role: r.role,
-        assignedAt: r.assignedAt,
-        assignedBy: r.assignedBy
-      })));
+      setAssignedRolesList(localRoles);
     }
   };
 

@@ -102,39 +102,43 @@ export default function App() {
 
     // Subscribe to assigned_roles globally so student devices receive teacher grants instantly
     const unsubscribeRoles = FirebaseService.subscribeAssignedRoles((liveRoles) => {
-      const localList = liveRoles.map(item => ({
-        id: item.id,
-        grade: item.grade,
-        classNum: item.classNum,
-        studentNum: item.studentNum,
-        name: item.name,
-        role: item.role,
-        assignedAt: item.assignedAt,
-        assignedBy: item.assignedBy
-      }));
-      StorageService.saveAssignedRoles(localList);
+      if (liveRoles && liveRoles.length > 0) {
+        const localList = liveRoles.map(item => ({
+          id: item.id,
+          grade: item.grade,
+          classNum: item.classNum,
+          studentNum: item.studentNum,
+          name: item.name,
+          role: item.role,
+          assignedAt: item.assignedAt,
+          assignedBy: item.assignedBy
+        }));
+        StorageService.saveAssignedRoles(localList);
 
-      // Also sync captain representatives
-      liveRoles.forEach(r => {
-        if (r.role === 'captain') {
-          StorageService.setSportsRepresentative(r.grade, r.classNum, r.name);
-        }
-      });
+        // Also sync captain representatives
+        liveRoles.forEach(r => {
+          if (r.role === 'captain') {
+            StorageService.setSportsRepresentative(r.grade, r.classNum, r.name);
+          }
+        });
 
-      // If current user is logged in, check if their role was updated
-      const sessionUser = StorageService.getCurrentUser();
-      if (sessionUser && sessionUser.grade && sessionUser.classNum && sessionUser.studentNum) {
-        const matchingRole = liveRoles.find(
-          r => r.grade === sessionUser.grade && r.classNum === sessionUser.classNum && r.studentNum === sessionUser.studentNum
-        );
-        if (matchingRole && matchingRole.role !== sessionUser.role) {
-          const updatedUser: UserProfile = {
-            ...sessionUser,
-            role: matchingRole.role,
-            isSportsRep: matchingRole.role === 'captain'
-          };
-          StorageService.saveCurrentUser(updatedUser);
-          setCurrentUser(updatedUser);
+        // If current user is logged in, check if their role was updated
+        const sessionUser = StorageService.getCurrentUser();
+        if (sessionUser && sessionUser.grade && sessionUser.classNum && sessionUser.studentNum) {
+          const matchingRole = liveRoles.find(
+            r => Number(r.grade) === Number(sessionUser.grade) && 
+                 Number(r.classNum) === Number(sessionUser.classNum) && 
+                 Number(r.studentNum) === Number(sessionUser.studentNum)
+          );
+          if (matchingRole && matchingRole.role !== sessionUser.role) {
+            const updatedUser: UserProfile = {
+              ...sessionUser,
+              role: matchingRole.role,
+              isSportsRep: matchingRole.role === 'captain'
+            };
+            StorageService.saveCurrentUser(updatedUser);
+            setCurrentUser(updatedUser);
+          }
         }
       }
 
@@ -160,7 +164,7 @@ export default function App() {
   const handleLogout = () => {
     StorageService.clearUserSession();
     setCurrentUser(null);
-    if (activeTab === 'TEACHER' || activeTab === 'ROSTER_SUBMIT') {
+    if (activeTab === 'TEACHER') {
       setActiveTab('STANDINGS');
     }
   };
