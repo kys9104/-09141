@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -14,7 +14,10 @@ import {
   Trash2,
   AlertTriangle,
   RotateCcw,
-  X
+  X,
+  FileText,
+  Search,
+  Users
 } from 'lucide-react';
 import { 
   GradeLevel, 
@@ -24,11 +27,13 @@ import {
   MatchCategory,
   isAdminRole,
   isCaptainRole,
-  isCouncilRole
+  isCouncilRole,
+  isRefereeRole
 } from '../types';
 import { LEAGUE_ROUNDS, CATEGORIES } from '../data/initialData';
 import { StorageService } from '../services/storageService';
 import { FirebaseService } from '../services/firebaseService';
+import { MatchResultDetailModal } from './MatchResultDetailModal';
 
 interface ScheduleRoundViewProps {
   currentUser: UserProfile | null;
@@ -61,12 +66,24 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
   };
 
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'COMPLETED' | 'UPCOMING'>('ALL');
+  const [selectedDetailMatch, setSelectedDetailMatch] = useState<{
+    tieId: string;
+    subMatchId: string;
+  } | null>(null);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
     type: 'SUBMATCH' | 'TIE';
     tieId: string;
     subMatchId?: string;
     title: string;
   } | null>(null);
+
+  const [liveKey, setLiveKey] = useState(0);
+  useEffect(() => {
+    const handleUpdate = () => setLiveKey(k => k + 1);
+    window.addEventListener('matchesUpdated', handleUpdate);
+    return () => window.removeEventListener('matchesUpdated', handleUpdate);
+  }, []);
 
   const matches = StorageService.getMatches();
   const currentRound = LEAGUE_ROUNDS.find(r => r.id === selectedRoundId) || LEAGUE_ROUNDS[0];
@@ -78,6 +95,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
   const isTeacher = isAdminRole(currentUser?.role);
   const isStudentCouncil = isCouncilRole(currentUser?.role);
   const isSportsRep = isCaptainRole(currentUser?.role);
+  const isReferee = isRefereeRole(currentUser?.role);
   const canManageLineup = isSportsRep || isStudentCouncil || isTeacher;
   const canEnterResults = isSportsRep || isStudentCouncil || isTeacher;
 
@@ -238,6 +256,50 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
         ))}
       </div>
 
+      {/* Match Status Filter Chips & Public View Notification */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#12192B] border border-white/10">
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-medium">
+          <span className="text-white/40 text-[11px] mr-1 hidden sm:inline font-mono">경기 상태:</span>
+          <button
+            onClick={() => setStatusFilter('ALL')}
+            className={`px-3 py-1 rounded-lg border transition text-xs ${
+              statusFilter === 'ALL'
+                ? 'bg-white text-black font-bold border-white'
+                : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+            }`}
+          >
+            전체 경기
+          </button>
+          <button
+            onClick={() => setStatusFilter('COMPLETED')}
+            className={`px-3 py-1 rounded-lg border transition text-xs flex items-center gap-1 ${
+              statusFilter === 'COMPLETED'
+                ? 'bg-blue-500 text-white font-bold border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]'
+                : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+            }`}
+          >
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>결과 완료 경기 (조회 가능)</span>
+          </button>
+          <button
+            onClick={() => setStatusFilter('UPCOMING')}
+            className={`px-3 py-1 rounded-lg border transition text-xs flex items-center gap-1 ${
+              statusFilter === 'UPCOMING'
+                ? 'bg-[#E2FF00] text-black font-bold border-[#E2FF00]'
+                : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>진행 및 예정 경기</span>
+          </button>
+        </div>
+
+        <div className="text-[11px] text-[#E2FF00] font-mono flex items-center gap-1.5 bg-[#E2FF00]/10 px-2.5 py-1 rounded-lg border border-[#E2FF00]/20">
+          <CheckCircle className="w-3.5 h-3.5" />
+          <span>전교생·심판진 누구나 실시간 경기 결과 조회 가능</span>
+        </div>
+      </div>
+
       {/* Tie Matches List */}
       <div className="space-y-6">
         {currentTieMatches.length === 0 ? (
@@ -248,9 +310,14 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
           currentTieMatches.map((tie, idx) => {
             const teamAGrade = tie.teamAGrade || tie.grade || 1;
             const teamBGrade = tie.teamBGrade || tie.grade || 1;
-            const filteredSubMatches = categoryFilter === 'ALL'
-              ? tie.subMatches
-              : tie.subMatches.filter(sm => sm.category === categoryFilter);
+            const filteredSubMatches = tie.subMatches.filter(sm => {
+              if (categoryFilter !== 'ALL' && sm.category !== categoryFilter) return false;
+              const hasScores = sm.sets && sm.sets.length > 0 && (sm.sets[0].scoreA > 0 || sm.sets[0].scoreB > 0);
+              const isCompleted = sm.status === 'COMPLETED' || hasScores;
+              if (statusFilter === 'COMPLETED' && !isCompleted) return false;
+              if (statusFilter === 'UPCOMING' && isCompleted) return false;
+              return true;
+            });
 
             return (
               <div
@@ -316,147 +383,206 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
 
                 {/* SubMatches Cards Grid */}
                 <div className="p-6 pt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredSubMatches.map((sm) => {
-                    const hasScores = sm.sets && sm.sets.length > 0 && (sm.sets[0].scoreA > 0 || sm.sets[0].scoreB > 0);
-                    const isAWin = sm.winnerTeam === 'A';
-                    const isBWin = sm.winnerTeam === 'B';
-                    const isLive = sm.status === 'IN_PROGRESS';
+                  {filteredSubMatches.length === 0 ? (
+                    <div className="col-span-full py-8 text-center bg-[#0E1424] rounded-xl border border-white/5 text-white/40 text-xs">
+                      선택한 필터 조건에 해당하는 경기가 없습니다.
+                    </div>
+                  ) : (
+                    filteredSubMatches.map((sm) => {
+                      const hasScores = sm.sets && sm.sets.length > 0 && (sm.sets[0].scoreA > 0 || sm.sets[0].scoreB > 0);
+                      const isAWin = sm.winnerTeam === 'A';
+                      const isBWin = sm.winnerTeam === 'B';
+                      const isLive = sm.status === 'IN_PROGRESS';
+                      const isCompleted = sm.status === 'COMPLETED' || hasScores;
 
-                    return (
-                      <div
-                        key={sm.id}
-                        className={`p-4 rounded-xl border transition-all ${
-                          isLive
-                            ? 'bg-[#161E31] border-[#E2FF00]/50 ring-1 ring-[#E2FF00]/30'
-                            : sm.status === 'COMPLETED'
-                            ? 'bg-[#0E1424] border-white/5 hover:border-white/10'
-                            : 'bg-[#0E1424] border-white/5'
-                        }`}
-                      >
-                        {/* SubMatch Top row */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            {getCategoryBadge(sm.category)}
-                            <span className="text-[11px] font-bold text-[#E2FF00] bg-[#E2FF00]/10 px-2 py-0.5 rounded border border-[#E2FF00]/20 flex items-center gap-1 font-mono">
-                              <MapPin className="w-3 h-3 text-[#E2FF00]" /> {sm.court}
-                            </span>
-                          </div>
-
-                          {/* Status Badge */}
-                          {sm.status === 'COMPLETED' ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">
-                              <CheckCircle className="w-3 h-3" /> COMPLETED (15점 단판)
-                            </span>
-                          ) : isLive ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/40 font-mono animate-pulse">
-                              <Zap className="w-3 h-3" /> LIVE 15점
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-white/5 text-white/40 font-mono">
-                              단판 15점 경기
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Teams & Players Clash Box */}
-                        <div className="grid grid-cols-5 items-center gap-2 py-2.5 px-3 rounded-lg bg-[#0A0F1D] border border-white/5">
-                          {/* Team A */}
-                          <div className="col-span-2 text-left">
-                            <div className="text-xs font-bold text-white">
-                              {teamAGrade}학년 {tie.teamAClass}반
+                      return (
+                        <div
+                          key={sm.id}
+                          className={`p-4 rounded-xl border transition-all ${
+                            isLive
+                              ? 'bg-[#161E31] border-[#E2FF00]/50 ring-1 ring-[#E2FF00]/30'
+                              : isCompleted
+                              ? 'bg-[#0E1424] border-white/10 hover:border-blue-500/30'
+                              : 'bg-[#0E1424] border-white/5'
+                          }`}
+                        >
+                          {/* SubMatch Top row */}
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              {getCategoryBadge(sm.category)}
+                              <span className="text-[11px] font-bold text-[#E2FF00] bg-[#E2FF00]/10 px-2 py-0.5 rounded border border-[#E2FF00]/20 flex items-center gap-1 font-mono">
+                                <MapPin className="w-3 h-3 text-[#E2FF00]" /> {sm.court}
+                              </span>
                             </div>
-                            <div className="text-[11px] text-white/50 truncate">
-                              {sm.teamAPlayers.length > 0 ? (sm.teamAPlayers.map(p => p.name).join(', ')) : '선수 미등록'}
-                            </div>
-                            {isAWin && (
-                              <span className="text-[10px] font-bold text-[#E2FF00] font-mono">WIN</span>
-                            )}
-                          </div>
 
-                          {/* Set Score or VS */}
-                          <div className="col-span-1 text-center font-bold">
-                            {hasScores ? (
-                              <div className="space-y-0.5">
-                                <div className="text-base font-black text-white font-mono">
-                                  {sm.sets[0].scoreA} : {sm.sets[0].scoreB}
-                                </div>
-                                <div className="text-[9px] text-[#E2FF00] font-mono">
-                                  단판 15점
-                                </div>
-                              </div>
+                            {/* Status Badge */}
+                            {sm.status === 'COMPLETED' || (hasScores && (sm.sets[0].scoreA >= 15 || sm.sets[0].scoreB >= 15)) ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">
+                                <CheckCircle className="w-3 h-3" /> COMPLETED (15점 확정)
+                              </span>
+                            ) : isLive ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/40 font-mono animate-pulse">
+                                <Zap className="w-3 h-3" /> LIVE 15점
+                              </span>
                             ) : (
-                              <span className="text-white/20 text-xs font-mono font-bold">VS</span>
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-white/5 text-white/40 font-mono">
+                                단판 15점 경기
+                              </span>
                             )}
                           </div>
 
-                          {/* Team B */}
-                          <div className="col-span-2 text-right">
-                            <div className="text-xs font-bold text-white">
-                              {teamBGrade}학년 {tie.teamBClass}반
+                          {/* Teams & Players Clash Box */}
+                          <div className="grid grid-cols-5 items-center gap-2 py-2.5 px-3 rounded-lg bg-[#0A0F1D] border border-white/5">
+                            {/* Team A */}
+                            <div className="col-span-2 text-left">
+                              <div className="text-xs font-bold text-white">
+                                {teamAGrade}학년 {tie.teamAClass}반
+                              </div>
+                              <div className="text-[11px] text-white/50 truncate">
+                                {sm.teamAPlayers.length > 0 ? (sm.teamAPlayers.map(p => p.name).join(', ')) : '선수 미등록'}
+                              </div>
+                              {isAWin && (
+                                <span className="text-[10px] font-bold text-[#E2FF00] font-mono">WIN</span>
+                              )}
                             </div>
-                            <div className="text-[11px] text-white/50 truncate">
-                              {sm.teamBPlayers.length > 0 ? (sm.teamBPlayers.map(p => p.name).join(', ')) : '선수 미등록'}
+
+                            {/* Set Score or VS */}
+                            <div className="col-span-1 text-center font-bold">
+                              {hasScores ? (
+                                <div className="space-y-0.5">
+                                  <div className="text-base font-black text-white font-mono">
+                                    {sm.sets[0].scoreA} : {sm.sets[0].scoreB}
+                                  </div>
+                                  <div className="text-[9px] text-[#E2FF00] font-mono">
+                                    단판 15점
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-white/20 text-xs font-mono font-bold">VS</span>
+                              )}
                             </div>
-                            {isBWin && (
-                              <span className="text-[10px] font-bold text-[#E2FF00] font-mono">WIN</span>
+
+                            {/* Team B */}
+                            <div className="col-span-2 text-right">
+                              <div className="text-xs font-bold text-white">
+                                {teamBGrade}학년 {tie.teamBClass}반
+                              </div>
+                              <div className="text-[11px] text-white/50 truncate">
+                                {sm.teamBPlayers.length > 0 ? (sm.teamBPlayers.map(p => p.name).join(', ')) : '선수 미등록'}
+                              </div>
+                              {isBWin && (
+                                <span className="text-[10px] font-bold text-[#E2FF00] font-mono">WIN</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Referee & Recorder Badges */}
+                          <div className="mt-2 pt-2 border-t border-white/5 flex flex-wrap items-center justify-between gap-2 text-[10px] text-white/50 font-mono">
+                            <span className="flex items-center gap-1">
+                              <span className="text-white/40">⚖️ 심판:</span>
+                              <strong className="text-white/90">{sm.referee || '학생 심판 배정'}</strong>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="text-white/40">✍️ 기록:</span>
+                              <strong className="text-white/90">{sm.recordedBy ? sm.recordedBy.split(' ')[0] : '학생자치회'}</strong>
+                            </span>
+                          </div>
+
+                          {/* MVP & Quick Stats if completed */}
+                          {sm.stats && sm.stats.mvpPlayerName && (
+                            <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center justify-between text-[11px] text-white/50 font-mono">
+                              <div className="flex items-center gap-1.5 text-[#E2FF00] font-bold">
+                                <Award className="w-3.5 h-3.5 text-[#E2FF00]" />
+                                <span>MVP: {sm.stats.mvpPlayerName}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-white/40">
+                                <span>스매시: {sm.stats.smashWinnersA || 0}/{sm.stats.smashWinnersB || 0}</span>
+                                <span>{sm.stats.durationMinutes || 0}분</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Action buttons */}
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {/* Primary Result Lookup Button (For ALL Students, Referees, Teachers) */}
+                            {isCompleted ? (
+                              <>
+                                <button
+                                  onClick={() => setSelectedDetailMatch({ tieId: tie.id, subMatchId: sm.id })}
+                                  className="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 transition flex items-center justify-center gap-1.5 font-mono shadow-sm"
+                                  title="전교생 및 심판진 누구나 세부 경기 결과 열람 가능"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-blue-400" />
+                                  <span>경기 결과 조회</span>
+                                </button>
+
+                                <button
+                                  onClick={() => onOpenLiveScoreModal(tie.id, sm.id)}
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#E2FF00]/15 hover:bg-[#E2FF00]/25 text-[#E2FF00] border border-[#E2FF00]/30 transition flex items-center justify-center gap-1 font-mono"
+                                  title="실시간 스코어보드"
+                                >
+                                  <Activity className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">스코어</span>
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => onOpenLiveScoreModal(tie.id, sm.id)}
+                                  className="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold bg-[#E2FF00]/15 hover:bg-[#E2FF00]/25 text-[#E2FF00] border border-[#E2FF00]/30 transition flex items-center justify-center gap-1 font-mono"
+                                >
+                                  <Activity className="w-3.5 h-3.5" />
+                                  <span>LIVE SCOREBOARD</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setSelectedDetailMatch({ tieId: tie.id, subMatchId: sm.id })}
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/70 border border-white/10 transition flex items-center justify-center gap-1"
+                                  title="대진 및 출전선수 정보"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-white/50" />
+                                  <span className="hidden sm:inline">대진 정보</span>
+                                </button>
+                              </>
+                            )}
+
+                            {/* Authorized Result Entry/Edit Button (Council, Teacher, Captain) */}
+                            {canEnterResults && (
+                              <button
+                                onClick={() => onOpenResultEntryModal(tie.id, sm.id)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 ${
+                                  isCompleted
+                                    ? 'bg-white/5 hover:bg-white/10 text-white/80 border border-white/10'
+                                    : 'bg-[#E2FF00]/10 hover:bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30 font-bold'
+                                }`}
+                                title={isCompleted ? "경기 결과 및 세부 점수 수정" : "학생자치회/교사 전용 결과 입력"}
+                              >
+                                <FileEdit className="w-3.5 h-3.5" />
+                                <span>{isCompleted ? "결과 수정" : "결과 입력"}</span>
+                              </button>
+                            )}
+
+                            {/* Teacher-only: Delete/Reset Submatch Result */}
+                            {isTeacher && isCompleted && (
+                              <button
+                                onClick={() => setDeleteConfirmModal({
+                                  type: 'SUBMATCH',
+                                  tieId: tie.id,
+                                  subMatchId: sm.id,
+                                  title: `${CATEGORIES.find(c => c.id === sm.category)?.name || sm.category} (${teamAGrade}학년 ${tie.teamAClass}반 VS ${teamBGrade}학년 ${tie.teamBClass}반)`
+                                })}
+                                className="px-2 py-1.5 rounded-lg text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition flex items-center justify-center gap-1 font-mono"
+                                title="체육교사 권한: 경기 결과 삭제 및 점수 초기화"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">결과 삭제</span>
+                              </button>
                             )}
                           </div>
                         </div>
-
-                        {/* MVP & Quick Stats if completed */}
-                        {sm.stats && sm.stats.mvpPlayerName && (
-                          <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-white/50 font-mono">
-                            <div className="flex items-center gap-1.5 text-[#E2FF00] font-bold">
-                              <Award className="w-3.5 h-3.5 text-[#E2FF00]" />
-                              <span>MVP: {sm.stats.mvpPlayerName}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-white/40">
-                              <span>스매시: {sm.stats.smashWinnersA || 0}/{sm.stats.smashWinnersB || 0}</span>
-                              <span>{sm.stats.durationMinutes || 0}분</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Action buttons */}
-                        <div className="mt-3 flex items-center gap-2">
-                          <button
-                            onClick={() => onOpenLiveScoreModal(tie.id, sm.id)}
-                            className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-[#E2FF00]/15 hover:bg-[#E2FF00]/25 text-[#E2FF00] border border-[#E2FF00]/30 transition flex items-center justify-center gap-1 font-mono"
-                          >
-                            <Activity className="w-3.5 h-3.5" />
-                            <span>LIVE SCOREBOARD</span>
-                          </button>
-
-                          {canEnterResults && (
-                            <button
-                              onClick={() => onOpenResultEntryModal(tie.id, sm.id)}
-                              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition flex items-center justify-center gap-1"
-                            >
-                              <FileEdit className="w-3.5 h-3.5 text-white/60" />
-                              <span>결과 입력</span>
-                            </button>
-                          )}
-
-                          {/* Teacher-only: Delete/Reset Submatch Result */}
-                          {isTeacher && (sm.status === 'COMPLETED' || hasScores) && (
-                            <button
-                              onClick={() => setDeleteConfirmModal({
-                                type: 'SUBMATCH',
-                                tieId: tie.id,
-                                subMatchId: sm.id,
-                                title: `${CATEGORIES.find(c => c.id === sm.category)?.name || sm.category} (${teamAGrade}학년 ${tie.teamAClass}반 VS ${teamBGrade}학년 ${tie.teamBClass}반)`
-                              })}
-                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition flex items-center justify-center gap-1 font-mono"
-                              title="체육교사 권한: 경기 결과 삭제 및 점수 초기화"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">결과 삭제</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
             );
@@ -515,6 +641,17 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Official Match Result Detail Modal for Everyone (Students, Referees, Teachers) */}
+      <MatchResultDetailModal
+        isOpen={Boolean(selectedDetailMatch)}
+        tieMatchId={selectedDetailMatch?.tieId || null}
+        subMatchId={selectedDetailMatch?.subMatchId || null}
+        currentUser={currentUser}
+        onClose={() => setSelectedDetailMatch(null)}
+        onOpenEdit={(tieId, subMatchId) => onOpenResultEntryModal(tieId, subMatchId)}
+        onOpenLiveScore={(tieId, subMatchId) => onOpenLiveScoreModal(tieId, subMatchId)}
+      />
 
     </div>
   );

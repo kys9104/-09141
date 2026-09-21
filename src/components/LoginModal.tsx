@@ -7,7 +7,8 @@ import {
   Activity, 
   Lock, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Scale
 } from 'lucide-react';
 import { GradeLevel, UserProfile, UserRole } from '../types';
 import { StorageService } from '../services/storageService';
@@ -158,7 +159,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     // Determine final role: if pre-assigned captain by teacher, honor it!
     let finalRole: UserRole = 'student';
-    if (liveRole === 'captain' || role === 'captain' || role === 'SPORTS_REP') {
+    if (role === 'referee') {
+      finalRole = 'referee';
+    } else if (liveRole === 'captain' || role === 'captain' || role === 'SPORTS_REP') {
       finalRole = 'captain';
     }
 
@@ -228,6 +231,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <div>
                   <div>일반 학생</div>
                   <div className={`text-[10px] font-normal ${role === 'student' || role === 'STUDENT' ? 'text-black/70' : 'text-white/40'}`}>모든 명단·결과 조회</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRole('referee')}
+                className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold text-left transition ${
+                  role === 'referee'
+                    ? 'bg-[#E2FF00] border-[#E2FF00] text-black shadow-[0_0_10px_rgba(226,255,0,0.3)]'
+                    : 'bg-[#0A0F1D] border-white/10 text-white/70 hover:border-white/20'
+                }`}
+              >
+                <Scale className={`w-4 h-4 ${role === 'referee' ? 'text-black' : 'text-[#E2FF00]'}`} />
+                <div>
+                  <div>심판진 (심판)</div>
+                  <div className={`text-[10px] font-normal ${role === 'referee' ? 'text-black/70' : 'text-white/40'}`}>경기 판정·결과 조회</div>
                 </div>
               </button>
 

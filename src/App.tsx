@@ -145,10 +145,17 @@ export default function App() {
       setRefreshKey(k => k + 1);
     });
 
+    const handleMatchesEvt = () => setRefreshKey(k => k + 1);
+    const handleRostersEvt = () => setRefreshKey(k => k + 1);
+    window.addEventListener('matchesUpdated', handleMatchesEvt);
+    window.addEventListener('rostersUpdated', handleRostersEvt);
+
     return () => {
       unsubscribeRoles();
       unsubscribeMatches();
       unsubscribeRosters();
+      window.removeEventListener('matchesUpdated', handleMatchesEvt);
+      window.removeEventListener('rostersUpdated', handleRostersEvt);
     };
   }, []);
 

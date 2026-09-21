@@ -10,13 +10,15 @@ import {
   Zap,
   Activity,
   UserCheck,
-  ClipboardList
+  ClipboardList,
+  Scale
 } from 'lucide-react';
 import { 
   UserProfile, 
   isAdminRole, 
   isCaptainRole, 
-  isCouncilRole 
+  isCouncilRole,
+  isRefereeRole
 } from '../types';
 
 interface HeaderProps {
@@ -39,6 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isAdmin = isAdminRole(currentUser?.role);
   const isCaptain = isCaptainRole(currentUser?.role);
   const isCouncil = isCouncilRole(currentUser?.role);
+  const isReferee = isRefereeRole(currentUser?.role);
 
   const getRoleBadge = () => {
     if (!currentUser) return null;
@@ -53,6 +56,13 @@ export const Header: React.FC<HeaderProps> = ({
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
           <Activity className="w-3.5 h-3.5" /> 학생자치회 (Council)
+        </span>
+      );
+    }
+    if (isReferee) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+          <Scale className="w-3.5 h-3.5" /> 심판진 (Referee)
         </span>
       );
     }

@@ -4,11 +4,13 @@ export type UserRole =
   | 'admin'    // ① 체육교사(Admin): 전체 결과 관리(수정/삭제), GAS URL 설정, 반장/체육부장 권한 부여
   | 'captain'  // ② 지정된 반장 및 체육부장: 자기 반의 출전명단(Roster) 작성 및 제출 전용
   | 'council'  // ③ 학생자치회: 경기 결과(점수 등) 입력 전용
-  | 'student'  // ④ 일반 학생: 모든 명단과 경기 결과 조회 전용
+  | 'referee'  // ④ 심판진: 경기 결과 및 스코어보드 확인/조회
+  | 'student'  // ⑤ 일반 학생: 모든 명단과 경기 결과 조회 전용
   | 'TEACHER'  // 레거시 호환
   | 'SPORTS_REP' 
   | 'STUDENT_COUNCIL' 
-  | 'STUDENT';
+  | 'STUDENT'
+  | 'REFEREE';
 
 export function isAdminRole(role?: string): boolean {
   return role === 'admin' || role === 'TEACHER';
@@ -22,8 +24,12 @@ export function isCouncilRole(role?: string): boolean {
   return role === 'council' || role === 'STUDENT_COUNCIL' || isAdminRole(role);
 }
 
+export function isRefereeRole(role?: string): boolean {
+  return role === 'referee' || role === 'REFEREE' || isAdminRole(role);
+}
+
 export function isStudentOnlyRole(role?: string): boolean {
-  return !role || role === 'student' || role === 'STUDENT';
+  return !role || role === 'student' || role === 'STUDENT' || role === 'referee' || role === 'REFEREE';
 }
 
 export interface UserProfile {

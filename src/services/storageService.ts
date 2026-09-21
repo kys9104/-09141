@@ -38,26 +38,47 @@ export interface AssignedRoleRecord {
 
 export class StorageService {
   /**
-   * Always merges incoming matches with INITIAL_TIE_MATCHES so no rounds/matches are lost
+   * Always merges incoming matches with INITIAL_TIE_MATCHES and existing localStorage cache
+   * so no rounds, matches, or previously recorded results are ever lost
    */
   static mergeMatchesWithInitial(incomingMatches: TieMatch[]): TieMatch[] {
-    if (!incomingMatches || !Array.isArray(incomingMatches) || incomingMatches.length === 0) {
-      return INITIAL_TIE_MATCHES;
-    }
+    let existingCache: TieMatch[] = [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.TIE_MATCHES);
+      if (raw) {
+        existingCache = JSON.parse(raw);
+      }
+    } catch (e) {}
+
+    const incomingList = Array.isArray(incomingMatches) ? incomingMatches : [];
+
     return INITIAL_TIE_MATCHES.map(baseMatch => {
-      const found = incomingMatches.find(m => m.id === baseMatch.id);
-      if (!found) return baseMatch;
+      const cached = existingCache.find(m => m.id === baseMatch.id);
+      const incoming = incomingList.find(m => m.id === baseMatch.id);
+
+      const activeSource = incoming || cached;
+      if (!activeSource) return baseMatch;
+
+      const mergedMatch = incoming && cached ? { ...cached, ...incoming } : activeSource;
+
       return {
         ...baseMatch,
-        ...found,
+        ...mergedMatch,
         subMatches: baseMatch.subMatches.map(baseSm => {
-          const foundSm = found.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
-          if (!foundSm) return baseSm;
-          const mergedTeamA = (foundSm.teamAPlayers && foundSm.teamAPlayers.length > 0) ? foundSm.teamAPlayers : (baseSm.teamAPlayers || []);
-          const mergedTeamB = (foundSm.teamBPlayers && foundSm.teamBPlayers.length > 0) ? foundSm.teamBPlayers : (baseSm.teamBPlayers || []);
+          const cachedSm = cached?.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
+          const incomingSm = incoming?.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
+          const sourceSm = incomingSm ? { ...cachedSm, ...incomingSm } : (cachedSm || baseSm);
+
+          const mergedTeamA = (sourceSm.teamAPlayers && sourceSm.teamAPlayers.length > 0)
+            ? sourceSm.teamAPlayers
+            : (baseSm.teamAPlayers || []);
+          const mergedTeamB = (sourceSm.teamBPlayers && sourceSm.teamBPlayers.length > 0)
+            ? sourceSm.teamBPlayers
+            : (baseSm.teamBPlayers || []);
+
           return {
             ...baseSm,
-            ...foundSm,
+            ...sourceSm,
             teamAPlayers: mergedTeamA,
             teamBPlayers: mergedTeamB
           };
@@ -137,9 +158,23 @@ export class StorageService {
     try {
       const merged = this.mergeMatchesWithInitial(matches);
       localStorage.setItem(STORAGE_KEYS.TIE_MATCHES, JSON.stringify(merged));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('matchesUpdated', { detail: merged }));
+      }
     } catch (e) {
       console.error('Failed to save matches', e);
     }
+  }
+
+  static saveSingleMatch(match: TieMatch): void {
+    const current = this.getMatches();
+    const idx = current.findIndex(m => m.id === match.id);
+    if (idx !== -1) {
+      current[idx] = match;
+    } else {
+      current.push(match);
+    }
+    this.saveMatches(current);
   }
 
   static getSportsRepresentatives(): Record<string, string> {
