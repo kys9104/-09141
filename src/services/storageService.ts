@@ -59,7 +59,17 @@ export class StorageService {
       const activeSource = incoming || cached;
       if (!activeSource) return baseMatch;
 
-      const mergedMatch = incoming && cached ? { ...cached, ...incoming } : activeSource;
+      // Smart merge: if cached has completed submatches and incoming does not, keep cached results
+      let mergedMatch = activeSource;
+      if (incoming && cached) {
+        const cachedHasResults = cached.subMatches?.some(s => s.status === 'COMPLETED');
+        const incomingHasResults = incoming.subMatches?.some(s => s.status === 'COMPLETED');
+        if (cachedHasResults && !incomingHasResults) {
+          mergedMatch = { ...incoming, ...cached };
+        } else {
+          mergedMatch = { ...cached, ...incoming };
+        }
+      }
 
       return {
         ...baseMatch,
@@ -67,7 +77,21 @@ export class StorageService {
         subMatches: baseMatch.subMatches.map(baseSm => {
           const cachedSm = cached?.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
           const incomingSm = incoming?.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
-          const sourceSm = incomingSm ? { ...cachedSm, ...incomingSm } : (cachedSm || baseSm);
+          
+          let sourceSm = baseSm;
+          if (cachedSm && incomingSm) {
+            const cachedIsCompleted = cachedSm.status === 'COMPLETED' || (cachedSm.sets && cachedSm.sets[0]?.scoreA > 0);
+            const incomingIsCompleted = incomingSm.status === 'COMPLETED' || (incomingSm.sets && incomingSm.sets[0]?.scoreA > 0);
+            if (cachedIsCompleted && !incomingIsCompleted) {
+              sourceSm = { ...incomingSm, ...cachedSm };
+            } else {
+              sourceSm = { ...cachedSm, ...incomingSm };
+            }
+          } else if (incomingSm) {
+            sourceSm = incomingSm;
+          } else if (cachedSm) {
+            sourceSm = cachedSm;
+          }
 
           const mergedTeamA = (sourceSm.teamAPlayers && sourceSm.teamAPlayers.length > 0)
             ? sourceSm.teamAPlayers
@@ -359,7 +383,13 @@ export class StorageService {
   static getCurrentUser(): UserProfile | null {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-      if (data) return JSON.parse(data);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed.role === 'student' || parsed.role === 'STUDENT') {
+          return null;
+        }
+        return parsed;
+      }
     } catch (e) {
       console.error('Failed to parse current user', e);
     }
@@ -459,8 +489,6 @@ export class StorageService {
     });
 
     matches.forEach(tie => {
-      if (tie.status !== 'COMPLETED') return;
-
       const teamAGrade = tie.teamAGrade || tie.grade || 1;
       const teamBGrade = tie.teamBGrade || tie.grade || 1;
       const keyA = `${teamAGrade}-${tie.teamAClass}`;
@@ -470,37 +498,65 @@ export class StorageService {
       const teamB = table[keyB];
       if (!teamA || !teamB) return;
 
-      teamA.played += 1;
-      teamB.played += 1;
+      // 1. Process all completed individual submatches (세트/종목별 승패 및 득실점 실시간 집계)
+      let tieAWins = 0;
+      let tieBWins = 0;
+      let hasCompletedSubMatch = false;
 
-      teamA.subMatchWon += tie.teamAWins;
-      teamA.subMatchLost += tie.teamBWins;
-      teamB.subMatchWon += tie.teamBWins;
-      teamB.subMatchLost += tie.teamAWins;
-
-      // Calculate total individual set points
       tie.subMatches.forEach(sm => {
-        sm.sets.forEach(set => {
-          teamA.scoreWon += set.scoreA;
-          teamA.scoreLost += set.scoreB;
-          teamB.scoreWon += set.scoreB;
-          teamB.scoreLost += set.scoreA;
-        });
+        const isCompleted = sm.status === 'COMPLETED' || 
+          (sm.sets && sm.sets.length > 0 && (sm.sets[0].scoreA > 0 || sm.sets[0].scoreB > 0));
+
+        if (isCompleted && sm.sets && sm.sets.length > 0) {
+          hasCompletedSubMatch = true;
+          const scoreA = Number(sm.sets[0].scoreA) || 0;
+          const scoreB = Number(sm.sets[0].scoreB) || 0;
+
+          teamA.scoreWon += scoreA;
+          teamA.scoreLost += scoreB;
+          teamB.scoreWon += scoreB;
+          teamB.scoreLost += scoreA;
+
+          if (sm.winnerTeam === 'A' || scoreA > scoreB) {
+            teamA.subMatchWon += 1;
+            teamB.subMatchLost += 1;
+            tieAWins += 1;
+          } else if (sm.winnerTeam === 'B' || scoreB > scoreA) {
+            teamB.subMatchWon += 1;
+            teamA.subMatchLost += 1;
+            tieBWins += 1;
+          }
+        }
       });
 
-      if (tie.teamAWins > tie.teamBWins) {
-        teamA.wins += 1;
-        teamA.points += 3;
-        teamB.losses += 1;
-      } else if (tie.teamBWins > tie.teamAWins) {
-        teamB.wins += 1;
-        teamB.points += 3;
-        teamA.losses += 1;
-      } else {
-        teamA.draws += 1;
-        teamB.draws += 1;
-        teamA.points += 1;
-        teamB.points += 1;
+      // Use max of calculated submatch wins or stored tie wins
+      tieAWins = Math.max(tieAWins, tie.teamAWins || 0);
+      tieBWins = Math.max(tieBWins, tie.teamBWins || 0);
+
+      // 2. Determine Tie (단체전 5종목) match conclusion & points
+      const allSubMatchesDone = tie.subMatches.every(sm => 
+        sm.status === 'COMPLETED' || (sm.sets && sm.sets.length > 0 && (sm.sets[0].scoreA > 0 || sm.sets[0].scoreB > 0))
+      );
+      const isTieFinished = tie.status === 'COMPLETED' || tieAWins >= 3 || tieBWins >= 3 || (allSubMatchesDone && hasCompletedSubMatch);
+
+      if (isTieFinished) {
+        teamA.played += 1;
+        teamB.played += 1;
+
+        if (tieAWins > tieBWins) {
+          teamA.wins += 1;
+          teamA.points += 3;
+          teamB.losses += 1;
+        } else if (tieBWins > tieAWins) {
+          teamB.wins += 1;
+          teamB.points += 3;
+          teamA.losses += 1;
+        } else {
+          teamA.draws += 1;
+          teamB.draws += 1;
+          teamA.points += 1;
+          teamB.points += 1;
+        }
       }
     });
 
@@ -532,6 +588,78 @@ export class StorageService {
     });
 
     return list;
+  }
+
+  // Get recently completed submatches for the live dashboard feed
+  static getRecentCompletedMatches(): Array<{
+    tieId: string;
+    subMatchId: string;
+    roundId: number;
+    category: string;
+    court: string;
+    teamAName: string;
+    teamBName: string;
+    scoreA: number;
+    scoreB: number;
+    winnerTeam: 'A' | 'B';
+    winnerClass: number;
+    mvpName: string;
+    referee: string;
+    recordedBy: string;
+  }> {
+    const matches = this.getMatches();
+    const results: Array<{
+      tieId: string;
+      subMatchId: string;
+      roundId: number;
+      category: string;
+      court: string;
+      teamAName: string;
+      teamBName: string;
+      scoreA: number;
+      scoreB: number;
+      winnerTeam: 'A' | 'B';
+      winnerClass: number;
+      mvpName: string;
+      referee: string;
+      recordedBy: string;
+    }> = [];
+
+    matches.forEach(tie => {
+      const teamAGrade = tie.teamAGrade || tie.grade || 1;
+      const teamBGrade = tie.teamBGrade || tie.grade || 1;
+
+      tie.subMatches.forEach(sm => {
+        const isDone = sm.status === 'COMPLETED' || 
+          (sm.sets && sm.sets.length > 0 && (sm.sets[0].scoreA > 0 || sm.sets[0].scoreB > 0));
+
+        if (isDone && sm.sets && sm.sets.length > 0) {
+          const scoreA = sm.sets[0].scoreA || 0;
+          const scoreB = sm.sets[0].scoreB || 0;
+          const winnerTeam = sm.winnerTeam === 'B' ? 'B' : 'A';
+          const winnerClass = winnerTeam === 'A' ? tie.teamAClass : tie.teamBClass;
+
+          results.push({
+            tieId: tie.id,
+            subMatchId: sm.id,
+            roundId: tie.roundId,
+            category: sm.category,
+            court: sm.court,
+            teamAName: `${teamAGrade}학년 ${tie.teamAClass}반`,
+            teamBName: `${teamBGrade}학년 ${tie.teamBClass}반`,
+            scoreA,
+            scoreB,
+            winnerTeam,
+            winnerClass,
+            mvpName: sm.stats?.mvpPlayerName || '',
+            referee: sm.referee || '학생 심판',
+            recordedBy: sm.recordedBy || '학생자치회'
+          });
+        }
+      });
+    });
+
+    return results;
   }
 
   // Calculate Cumulative Player Stats

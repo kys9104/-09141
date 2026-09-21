@@ -75,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({
     }
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white/80 border border-white/10">
-        일반 학생 (Student)
+        운영진
       </span>
     );
   };

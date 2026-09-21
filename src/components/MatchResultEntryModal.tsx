@@ -47,13 +47,15 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
   const [referee, setReferee] = useState<string>(currentUser?.name || '학생자치회');
 
   useEffect(() => {
-    if (!isOpen || !tieMatchId || !subMatchId) return;
+    if (!isOpen || !tieMatchId) return;
     const matches = StorageService.getMatches();
     const currentTie = matches.find(m => m.id === tieMatchId);
     if (!currentTie) return;
     setTie(currentTie);
 
-    const sm = currentTie.subMatches.find(s => s.id === subMatchId);
+    const sm = subMatchId 
+      ? currentTie.subMatches.find(s => s.id === subMatchId) 
+      : currentTie.subMatches[0];
     if (!sm) return;
     setSubMatch(sm);
 
@@ -65,6 +67,10 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
       } else if (sm.sets[0].scoreB > sm.sets[0].scoreA) {
         setWinnerTeam('B');
       }
+    } else {
+      setScoreA(15);
+      setScoreB(12);
+      setWinnerTeam('A');
     }
 
     if (sm.winnerTeam) setWinnerTeam(sm.winnerTeam === 'DRAW' ? 'A' : sm.winnerTeam);
@@ -75,6 +81,26 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
   }, [isOpen, tieMatchId, subMatchId]);
 
   if (!isOpen || !tie || !subMatch) return null;
+
+  const handleSelectSubMatch = (selectedSm: SubMatch) => {
+    setSubMatch(selectedSm);
+    if (selectedSm.sets && selectedSm.sets.length > 0) {
+      setScoreA(selectedSm.sets[0].scoreA || 15);
+      setScoreB(selectedSm.sets[0].scoreB || 12);
+      if (selectedSm.sets[0].scoreA > selectedSm.sets[0].scoreB) {
+        setWinnerTeam('A');
+      } else if (selectedSm.sets[0].scoreB > selectedSm.sets[0].scoreA) {
+        setWinnerTeam('B');
+      }
+    } else {
+      setScoreA(15);
+      setScoreB(12);
+      setWinnerTeam('A');
+    }
+    if (selectedSm.winnerTeam) setWinnerTeam(selectedSm.winnerTeam === 'DRAW' ? 'A' : selectedSm.winnerTeam);
+    if (selectedSm.stats) setMvpPlayer(selectedSm.stats.mvpPlayerName || '');
+    if (selectedSm.referee) setReferee(selectedSm.referee);
+  };
 
   const teamAGrade = tie.teamAGrade || tie.grade || 1;
   const teamBGrade = tie.teamBGrade || tie.grade || 1;
@@ -116,7 +142,7 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
     if (tieIdx === -1) return;
 
     const t = matches[tieIdx];
-    const smIdx = t.subMatches.findIndex(s => s.id === subMatchId);
+    const smIdx = t.subMatches.findIndex(s => s.id === subMatch.id);
     if (smIdx === -1) return;
 
     // Single-set 15 points
@@ -216,6 +242,35 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* SubMatch Category Selector Tabs */}
+        <div className="px-6 py-2.5 bg-[#0e1526] border-b border-white/10 flex items-center gap-1.5 overflow-x-auto">
+          {tie.subMatches.map((s) => {
+            const isSelected = s.id === subMatch.id;
+            const isCompleted = s.status === 'COMPLETED' || (s.sets && s.sets[0] && (s.sets[0].scoreA > 0 || s.sets[0].scoreB > 0));
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => handleSelectSubMatch(s)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap font-mono ${
+                  isSelected
+                    ? 'bg-[#E2FF00] text-black shadow-md'
+                    : isCompleted
+                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20 hover:bg-blue-500/20'
+                    : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <span>{s.category}</span>
+                {isCompleted && (
+                  <span className={`text-[10px] px-1 rounded font-mono ${isSelected ? 'bg-black/20 text-black' : 'bg-blue-500/20 text-blue-300'}`}>
+                    {s.sets?.[0]?.scoreA || 0}:{s.sets?.[0]?.scoreB || 0}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Form Body */}

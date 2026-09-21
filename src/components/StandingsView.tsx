@@ -10,7 +10,10 @@ import {
   Sparkles,
   Info,
   Zap,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2,
+  ArrowRight,
+  Activity
 } from 'lucide-react';
 import { GradeLevel, ClassStanding, TieMatch } from '../types';
 import { StorageService } from '../services/storageService';
@@ -24,8 +27,14 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
 }) => {
   const standings = StorageService.calculateStandings('ALL');
   const allMatches = StorageService.getMatches();
+  const recentCompletedMatches = StorageService.getRecentCompletedMatches();
 
   const completedMatches = allMatches.filter(m => m.status === 'COMPLETED');
+  const inProgressMatches = allMatches.filter(m => m.status === 'IN_PROGRESS');
+
+  // Total completed individual submatches count
+  const completedSubMatchesCount = recentCompletedMatches.length;
+
   const leader = standings[0];
 
   return (
@@ -74,7 +83,10 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
               <Calendar className="w-3.5 h-3.5 text-blue-400" /> 진행 경기
             </span>
             <div className="mt-1 text-base sm:text-lg font-bold text-white font-mono">
-              {completedMatches.length} / {allMatches.length} <span className="text-xs font-normal text-white/50 font-sans">경기 완료</span>
+              {completedMatches.length} / {allMatches.length} <span className="text-xs font-normal text-white/50 font-sans">대진 완료</span>
+            </div>
+            <div className="text-[11px] text-[#E2FF00] font-mono mt-0.5">
+              총 {completedSubMatchesCount}/30 종목 입력완료
             </div>
           </div>
 
@@ -96,6 +108,76 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Realtime Recent Completed Matches Section */}
+      <div className="bg-[#12192B] border border-white/10 rounded-2xl overflow-hidden shadow-lg p-5">
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-[#E2FF00] animate-pulse" />
+            <h3 className="text-sm font-bold text-white font-mono">
+              실시간 최근 경기 결과 (최근 입력 및 저장 현황)
+            </h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              저장 완료: {completedSubMatchesCount}건
+            </span>
+          </div>
+
+          {onOpenSchedule && (
+            <button
+              onClick={onOpenSchedule}
+              className="text-xs text-[#E2FF00] hover:underline flex items-center gap-1 font-mono"
+            >
+              <span>전체 일정/결과 보기</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {recentCompletedMatches.length === 0 ? (
+          <div className="p-5 rounded-xl bg-[#0A0F1D] border border-white/5 text-center text-white/40 text-xs font-mono">
+            아직 입력된 경기 결과가 없습니다. 학생자치회 또는 체육교사가 '경기 일정 / 결과' 탭에서 결과를 입력하면 실시간으로 이곳과 순위표에 즉시 반영됩니다.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {recentCompletedMatches.slice(-6).reverse().map((rc, idx) => (
+              <div
+                key={`${rc.tieId}-${rc.subMatchId}-${idx}`}
+                className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 hover:border-[#E2FF00]/40 transition space-y-2"
+              >
+                <div className="flex items-center justify-between text-[11px] font-mono">
+                  <span className="px-2 py-0.5 rounded bg-white/10 text-white/80 font-bold">
+                    제{rc.roundId}R • {rc.category}
+                  </span>
+                  <span className="text-[#E2FF00] text-[10px] font-bold">
+                    {rc.court}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between font-mono py-1">
+                  <div className={`text-xs ${rc.winnerTeam === 'A' ? 'font-bold text-[#E2FF00]' : 'text-white/70'}`}>
+                    {rc.teamAName} {rc.winnerTeam === 'A' && '🏆'}
+                  </div>
+                  <div className="px-2.5 py-0.5 rounded bg-white/5 text-sm font-black text-white tracking-wider border border-white/10">
+                    {rc.scoreA} : {rc.scoreB}
+                  </div>
+                  <div className={`text-xs ${rc.winnerTeam === 'B' ? 'font-bold text-[#E2FF00]' : 'text-white/70'}`}>
+                    {rc.winnerTeam === 'B' && '🏆'} {rc.teamBName}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-white/40 font-mono">
+                  {rc.mvpName ? (
+                    <span className="text-[#E2FF00] truncate">MVP: {rc.mvpName}</span>
+                  ) : (
+                    <span>심판: {rc.referee}</span>
+                  )}
+                  <span className="text-white/50 truncate">기록: {rc.recordedBy.split(' ')[0]}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main Standings Table Card */}
@@ -203,7 +285,13 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
                     {/* Status badge */}
                     <td className="py-4 px-4 text-center">
                       {item.played === 0 ? (
-                        <span className="px-2 py-0.5 text-[10px] rounded bg-white/5 text-white/40 border border-white/10 font-mono">대기중</span>
+                        (item.subMatchWon > 0 || item.subMatchLost > 0) ? (
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono whitespace-nowrap">
+                            진행중 ({item.subMatchWon + item.subMatchLost}경기)
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-[10px] rounded bg-white/5 text-white/40 border border-white/10 font-mono">대기중</span>
+                        )
                       ) : (
                         <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">
                           {Math.round((item.wins / (item.played || 1)) * 100)}% WIN
