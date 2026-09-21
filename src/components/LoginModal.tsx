@@ -87,7 +87,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     // 1. 체육교사 (Teacher)
     if (role === 'admin' || role === 'TEACHER') {
       if (teacherPassword !== '4161') {
-        setErrorMessage('체육교사 접근 비밀번호(4161)가 일치하지 않습니다.');
+        setErrorMessage('체육교사 접근 비밀번호가 일치하지 않습니다.');
         return;
       }
       const teacherProfile: UserProfile = {
@@ -107,7 +107,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     // 2. 학생자치회 (Student Council)
     if (role === 'council' || role === 'STUDENT_COUNCIL') {
       if (studentCouncilPassword !== '8650') {
-        setErrorMessage('학생자치회 접근 비밀번호(8650)가 일치하지 않습니다.');
+        setErrorMessage('학생자치회 접근 비밀번호가 일치하지 않습니다.');
         return;
       }
       if (!name.trim()) {
@@ -265,7 +265,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/30 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
-                  <Lock className="w-3.5 h-3.5" /> 학생자치회 비밀번호 (8650)
+                  <Lock className="w-3.5 h-3.5" /> 학생자치회 비밀번호
                 </label>
               </div>
               <input
@@ -273,7 +273,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 id="student-council-password-input"
                 value={studentCouncilPassword}
                 onChange={(e) => setStudentCouncilPassword(e.target.value)}
-                placeholder="비밀번호 8650 입력"
+                placeholder="비밀번호 입력"
                 autoComplete="current-password"
                 className="w-full px-3.5 py-2.5 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono tracking-widest"
               />
@@ -285,7 +285,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-[#E2FF00]/30 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#E2FF00] flex items-center gap-1.5 font-mono">
-                  <Lock className="w-3.5 h-3.5" /> 체육교사 관리자 비밀번호 (4161)
+                  <Lock className="w-3.5 h-3.5" /> 체육교사 관리자 비밀번호
                 </label>
               </div>
               <input
@@ -293,7 +293,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 id="teacher-password-input"
                 value={teacherPassword}
                 onChange={(e) => setTeacherPassword(e.target.value)}
-                placeholder="비밀번호 4161 입력"
+                placeholder="비밀번호 입력"
                 className="w-full px-3.5 py-2.5 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono tracking-widest"
               />
             </div>
