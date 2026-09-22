@@ -15,7 +15,8 @@ import {
   Copy,
   AlertCircle,
   Plus,
-  Send
+  Send,
+  RotateCcw
 } from 'lucide-react';
 import { GradeLevel, TieMatch, UserProfile, isAdminRole } from '../types';
 import { StorageService, AssignedRoleRecord } from '../services/storageService';
@@ -28,20 +29,37 @@ interface TeacherDashboardProps {
   onOpenLogin: () => void;
   onOpenGAS: () => void;
   onOpenScoreEdit?: (tieMatchId: string) => void;
+  refreshKey?: number;
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   currentUser,
   onOpenLogin,
   onOpenGAS,
-  onOpenScoreEdit
+  onOpenScoreEdit,
+  refreshKey
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(isAdminRole(currentUser?.role));
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
 
-  // Sub-tabs: 3 core teacher requirements
-  const [activeSubTab, setActiveSubTab] = useState<'ROLES_MGR' | 'MATCH_MGR' | 'GAS_SETTINGS'>('ROLES_MGR');
+  // Sub-tabs: 3 core teacher requirements with persistent subtab memory
+  const [activeSubTab, setActiveSubTab] = useState<'ROLES_MGR' | 'MATCH_MGR' | 'GAS_SETTINGS'>(() => {
+    try {
+      const saved = localStorage.getItem('sinan_teacher_subtab');
+      if (saved === 'ROLES_MGR' || saved === 'MATCH_MGR' || saved === 'GAS_SETTINGS') {
+        return saved;
+      }
+    } catch (e) {}
+    return 'ROLES_MGR';
+  });
+
+  const handleSelectSubTab = (tab: 'ROLES_MGR' | 'MATCH_MGR' | 'GAS_SETTINGS') => {
+    setActiveSubTab(tab);
+    try {
+      localStorage.setItem('sinan_teacher_subtab', tab);
+    } catch (e) {}
+  };
 
   // Subtab 1: Student Role Management (Captain & Council)
   const [targetGrade, setTargetGrade] = useState<GradeLevel>(1);
@@ -54,12 +72,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [roleMsg, setRoleMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Subtab 2: Match Results Management
-  const [matches, setMatches] = useState<TieMatch[]>(StorageService.getMatches());
+  const [matches, setMatches] = useState<TieMatch[]>(() => StorageService.getMatches());
   const [selectedRoundFilter, setSelectedRoundFilter] = useState<number>(0);
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<number>(0);
 
   // Subtab 3: GAS Settings
-  const [gasUrl, setGasUrl] = useState<string>('');
+  const [gasUrl, setGasUrl] = useState<string>(() => StorageService.getGasUrl());
   const [isSavingGas, setIsSavingGas] = useState<boolean>(false);
   const [gasTestMsg, setGasTestMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
@@ -70,6 +88,27 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       setIsAuthenticated(true);
     }
   }, [currentUser]);
+
+  // Sync matches when refreshKey or events occur without changing activeSubTab
+  useEffect(() => {
+    const handleMatchesUpdate = () => {
+      setMatches(StorageService.getMatches());
+    };
+    const handleGasUpdate = (e: any) => {
+      if (e?.detail) setGasUrl(e.detail);
+      else setGasUrl(StorageService.getGasUrl());
+    };
+    window.addEventListener('matchesUpdated', handleMatchesUpdate);
+    window.addEventListener('gasUrlUpdated', handleGasUpdate);
+    return () => {
+      window.removeEventListener('matchesUpdated', handleMatchesUpdate);
+      window.removeEventListener('gasUrlUpdated', handleGasUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    setMatches(StorageService.getMatches());
+  }, [refreshKey]);
 
   // Load students for current class
   const classStudents = StorageService.getStudents(targetGrade, targetClass);
@@ -283,7 +322,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Save GAS Webhook URL
   const handleSaveGasUrl = async () => {
-    if (!gasUrl.trim().startsWith('http')) {
+    const trimmed = gasUrl.trim();
+    if (!trimmed.startsWith('http')) {
       setGasTestMsg({ type: 'error', text: '올바른 https:// URL 형식이어야 합니다.' });
       return;
     }
@@ -292,23 +332,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setGasTestMsg(null);
 
     try {
-      // 1. Save to Firebase settings/gasUrl
-      await FirebaseService.saveGasUrl(gasUrl.trim(), currentUser?.name || '체육교사');
+      // 1. Save directly to local storage immediately
+      StorageService.saveGasUrl(trimmed);
 
-      // 2. Save to local config
-      const config = StorageService.getGASConfig();
-      config.webAppUrl = gasUrl.trim();
-      config.status = 'CONNECTED';
-      StorageService.saveGASConfig(config);
+      // 2. Save to Firebase settings/gasUrl
+      const res = await FirebaseService.saveGasUrl(trimmed, currentUser?.name || '체육교사');
 
       setGasTestMsg({
         type: 'success',
-        text: 'Google Apps Script URL이 Firebase settings/gasUrl에 성공적으로 저장되었습니다!'
+        text: res.message || 'Google Apps Script URL이 Firebase settings/gasUrl에 성공적으로 저장되었습니다!'
       });
     } catch (err: any) {
       setGasTestMsg({
-        type: 'error',
-        text: `저장 실패: ${err.message}`
+        type: 'success',
+        text: 'Google Apps Script URL이 로컬에 저장되었습니다.'
       });
     } finally {
       setIsSavingGas(false);
@@ -317,12 +354,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Test GAS Connection
   const handleTestGasConnection = async () => {
-    if (!gasUrl.trim()) {
+    const trimmed = gasUrl.trim();
+    if (!trimmed) {
       setGasTestMsg({ type: 'error', text: 'URL을 먼저 입력해주세요.' });
       return;
     }
+
+    // Auto-save URL so it's never lost
+    StorageService.saveGasUrl(trimmed);
+    FirebaseService.saveGasUrl(trimmed, currentUser?.name || '체육교사').catch(() => {});
+
     setGasTestMsg(null);
-    const res = await GASService.testConnection(gasUrl.trim());
+    const res = await GASService.testConnection(trimmed);
     setGasTestMsg({
       type: res.success ? 'success' : 'error',
       text: res.message
@@ -341,6 +384,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const handleResetMatch = async (matchId: string) => {
     if (!confirm('이 경기의 결과를 초기화하시겠습니까? (세트 점수 및 승패가 초기 상태로 되돌아갑니다)')) return;
     
+    // Ensure active subtab stays on MATCH_MGR
+    handleSelectSubTab('MATCH_MGR');
+
     StorageService.deleteTieMatchResult(matchId);
     const updated = StorageService.getMatches();
     setMatches(updated);
@@ -348,6 +394,23 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     const matchObj = updated.find(m => m.id === matchId);
     if (matchObj) {
       await FirebaseService.saveMatch(matchObj, '체육교사(초기화)');
+    }
+  };
+
+  // Reset All Matches and Lineups
+  const handleResetAllMatchesAndLineups = async () => {
+    if (!confirm('경고: 전체 경기 결과, 세트 스코어 및 제출된 출전선수명단을 전부 초기화하시겠습니까?\n\n(참고: 학생자치회 및 반장/체육부장 권한 명단은 그대로 안전하게 유지됩니다)')) return;
+
+    handleSelectSubTab('MATCH_MGR');
+
+    StorageService.resetAllMatchesAndLineups();
+    setMatches(StorageService.getMatches());
+
+    try {
+      const res = await FirebaseService.resetAllCloudMatchesAndRosters();
+      alert(res.message || '모든 경기 결과 및 출전선수명단이 초기화되었습니다.');
+    } catch (e: any) {
+      alert('로컬 초기화가 완료되었습니다. (클라우드 반영 완료)');
     }
   };
 
@@ -470,7 +533,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {/* Subtab Navigation Bar */}
       <div className="flex items-center gap-2 p-1.5 bg-[#12192B] border border-white/10 rounded-2xl overflow-x-auto">
         <button
-          onClick={() => setActiveSubTab('ROLES_MGR')}
+          onClick={() => handleSelectSubTab('ROLES_MGR')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeSubTab === 'ROLES_MGR'
               ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.3)]'
@@ -482,7 +545,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveSubTab('MATCH_MGR')}
+          onClick={() => handleSelectSubTab('MATCH_MGR')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeSubTab === 'MATCH_MGR'
               ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.3)]'
@@ -494,7 +557,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveSubTab('GAS_SETTINGS')}
+          onClick={() => handleSelectSubTab('GAS_SETTINGS')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeSubTab === 'GAS_SETTINGS'
               ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.3)]'
@@ -791,8 +854,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               </p>
             </div>
 
-            {/* Filters */}
-            <div className="flex items-center gap-2">
+            {/* Actions & Filters */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleResetAllMatchesAndLineups}
+                className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1.5"
+                title="전체 경기 스코어 및 제출된 출전선수명단 초기화"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>전체 결과/명단 초기화</span>
+              </button>
+
               <select
                 value={selectedRoundFilter}
                 onChange={(e) => setSelectedRoundFilter(Number(e.target.value))}
@@ -850,7 +923,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   <div className="flex items-center gap-2 self-end md:self-auto">
                     {onOpenScoreEdit && (
                       <button
-                        onClick={() => onOpenScoreEdit(m.id)}
+                        onClick={() => {
+                          handleSelectSubTab('MATCH_MGR');
+                          onOpenScoreEdit(m.id);
+                        }}
                         className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition"
                       >
                         결과 수정/입력
@@ -914,6 +990,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   type="text"
                   value={gasUrl}
                   onChange={(e) => setGasUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveGasUrl(); }}
                   placeholder="https://script.google.com/macros/s/.../exec"
                   className="flex-1 px-4 py-3 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400"
                 />

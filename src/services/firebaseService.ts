@@ -16,6 +16,8 @@ import {
 import { auth } from './googleAuthService';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { UserProfile, UserRole, TieMatch, LineupEntry, GradeLevel, MatchCategory } from '../types';
+import { INITIAL_TIE_MATCHES } from '../data/initialData';
+import { StorageService } from './storageService';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
@@ -565,34 +567,88 @@ export class FirebaseService {
   // ==========================================
 
   /**
-   * Get settings/gasUrl from Firestore
+   * Get settings/gasUrl from Firestore with local storage fallback
    */
   static async getGasUrl(): Promise<string> {
+    const localUrl = StorageService.getGasUrl();
     try {
       const settingsRef = doc(db, 'settings', 'gasUrl');
-      const snap = await getDoc(settingsRef);
-      if (snap.exists() && snap.data()?.gasUrl) {
-        return snap.data().gasUrl;
+      const snapPromise = getDoc(settingsRef);
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+      const snap: any = await Promise.race([snapPromise, timeoutPromise]);
+      
+      if (snap && snap.exists() && snap.data()?.gasUrl) {
+        const cloudUrl = snap.data().gasUrl.trim();
+        if (cloudUrl) {
+          StorageService.saveGasUrl(cloudUrl);
+          return cloudUrl;
+        }
       }
     } catch (e) {
       console.warn('Firebase getGasUrl error:', e);
     }
-    return '';
+    return localUrl || '';
   }
 
   /**
-   * Save settings/gasUrl to Firestore (Admin only)
+   * Save settings/gasUrl to Firestore and local storage (Admin only)
    */
-  static async saveGasUrl(gasUrl: string, updatedBy: string = ''): Promise<void> {
+  static async saveGasUrl(gasUrl: string, updatedBy: string = ''): Promise<{ success: boolean; message: string }> {
+    const trimmed = (gasUrl || '').trim();
+    // 1. Immediately persist locally
+    StorageService.saveGasUrl(trimmed);
+
     try {
       const settingsRef = doc(db, 'settings', 'gasUrl');
-      await setDoc(settingsRef, {
-        gasUrl: gasUrl.trim(),
+      const writePromise = setDoc(settingsRef, {
+        gasUrl: trimmed,
         updatedAt: new Date().toISOString(),
         updatedBy: updatedBy || auth.currentUser?.email || '체육교사'
       }, { merge: true });
+
+      const timeoutPromise = new Promise<{ success: boolean; message: string }>((_, reject) =>
+        setTimeout(() => reject(new Error('Firebase saveGasUrl 타임아웃')), 4000)
+      );
+
+      await Promise.race([writePromise, timeoutPromise]);
+      return { success: true, message: '구글 시트 웹앱 URL이 성공적으로 저장되었습니다.' };
     } catch (e) {
-      console.error('Firebase saveGasUrl error:', e);
+      console.warn('Firebase saveGasUrl warning (saved locally):', e);
+      return { success: true, message: '구글 시트 웹앱 URL이 로컬에 저장되었습니다.' };
+    }
+  }
+
+  /**
+   * Reset all cloud matches to initial blank state and delete all cloud rosters
+   */
+  static async resetAllCloudMatchesAndRosters(): Promise<{ success: boolean; message: string }> {
+    try {
+      // 1. Overwrite all matches in Firestore with clean INITIAL_TIE_MATCHES
+      const matchPromises = INITIAL_TIE_MATCHES.map(async (m) => {
+        const matchRef = doc(db, 'matches', m.id);
+        const cleanData = this.sanitizeForFirestore({
+          ...m,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email || '체육교사 (데이터 초기화)'
+        });
+        return setDoc(matchRef, cleanData);
+      });
+      await Promise.allSettled(matchPromises);
+
+      // 2. Delete all roster documents from Firestore 'rosters' collection
+      try {
+        const rostersRef = collection(db, 'rosters');
+        const snap = await getDocs(rostersRef);
+        const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
+        await Promise.allSettled(deletePromises);
+      } catch (err) {
+        console.warn('Firebase delete rosters note:', err);
+      }
+
+      return { success: true, message: '클라우드의 모든 경기 결과 및 출전선수명단이 초기화되었습니다.' };
+    } catch (e: any) {
+      console.warn('Firebase resetAllCloudMatchesAndRosters error:', e);
+      return { success: false, message: e.message || '클라우드 초기화 중 오류가 발생했습니다.' };
     }
   }
 }

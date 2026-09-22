@@ -20,10 +20,12 @@ const STORAGE_KEYS = {
   TIE_MATCHES: 'sinan_badminton_matches_v8',
   SPORTS_REPS: 'sinan_badminton_sports_reps_v8',
   GAS_CONFIG: 'sinan_badminton_gas_config_v8',
+  GAS_URL_DIRECT: 'sinan_badminton_gas_url_v8',
   CURRENT_USER: 'sinan_badminton_current_user_v8',
   LINEUPS: 'sinan_badminton_lineups_v8',
   CUSTOM_STUDENTS: 'sinan_badminton_students_v8',
-  ASSIGNED_ROLES: 'sinan_badminton_assigned_roles_v9'
+  ASSIGNED_ROLES: 'sinan_badminton_assigned_roles_v9',
+  CLEAN_RESET_FLAG: 'sinan_badminton_reset_v10_clean'
 };
 
 export interface AssignedRoleRecord {
@@ -39,73 +41,43 @@ export interface AssignedRoleRecord {
 
 export class StorageService {
   /**
-   * Always merges incoming matches with INITIAL_TIE_MATCHES and existing localStorage cache
-   * so no rounds, matches, or previously recorded results are ever lost
+   * One-time check on application startup to ensure matches and rosters are reset to clean state
+   */
+  static checkAndPerformInitialCleanReset(): void {
+    try {
+      if (typeof window === 'undefined') return;
+      const isCleaned = localStorage.getItem(STORAGE_KEYS.CLEAN_RESET_FLAG);
+      if (isCleaned !== 'true') {
+        this.resetAllMatchesAndLineups();
+        localStorage.setItem(STORAGE_KEYS.CLEAN_RESET_FLAG, 'true');
+      }
+    } catch (e) {
+      console.warn('Initial clean reset note:', e);
+    }
+  }
+
+  /**
+   * Merges incoming matches with INITIAL_TIE_MATCHES structure so no rounds or submatches are missing.
+   * If incoming matches are provided, incoming is strictly authoritative (does not revive deleted scores).
    */
   static mergeMatchesWithInitial(incomingMatches: TieMatch[]): TieMatch[] {
-    let existingCache: TieMatch[] = [];
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.TIE_MATCHES);
-      if (raw) {
-        existingCache = JSON.parse(raw);
-      }
-    } catch (e) {}
-
     const incomingList = Array.isArray(incomingMatches) ? incomingMatches : [];
 
     return INITIAL_TIE_MATCHES.map(baseMatch => {
-      const cached = existingCache.find(m => m.id === baseMatch.id);
       const incoming = incomingList.find(m => m.id === baseMatch.id);
-
-      const activeSource = incoming || cached;
-      if (!activeSource) return baseMatch;
-
-      // Smart merge: if cached has completed submatches and incoming does not, keep cached results
-      let mergedMatch = activeSource;
-      if (incoming && cached) {
-        const cachedHasResults = cached.subMatches?.some(s => s.status === 'COMPLETED');
-        const incomingHasResults = incoming.subMatches?.some(s => s.status === 'COMPLETED');
-        if (cachedHasResults && !incomingHasResults) {
-          mergedMatch = { ...incoming, ...cached };
-        } else {
-          mergedMatch = { ...cached, ...incoming };
-        }
-      }
+      if (!incoming) return baseMatch;
 
       return {
         ...baseMatch,
-        ...mergedMatch,
+        ...incoming,
         subMatches: baseMatch.subMatches.map(baseSm => {
-          const cachedSm = cached?.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
-          const incomingSm = incoming?.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
-          
-          let sourceSm = baseSm;
-          if (cachedSm && incomingSm) {
-            const cachedIsCompleted = cachedSm.status === 'COMPLETED' || (cachedSm.sets && cachedSm.sets[0]?.scoreA > 0);
-            const incomingIsCompleted = incomingSm.status === 'COMPLETED' || (incomingSm.sets && incomingSm.sets[0]?.scoreA > 0);
-            if (cachedIsCompleted && !incomingIsCompleted) {
-              sourceSm = { ...incomingSm, ...cachedSm };
-            } else {
-              sourceSm = { ...cachedSm, ...incomingSm };
-            }
-          } else if (incomingSm) {
-            sourceSm = incomingSm;
-          } else if (cachedSm) {
-            sourceSm = cachedSm;
-          }
-
-          const mergedTeamA = (sourceSm.teamAPlayers && sourceSm.teamAPlayers.length > 0)
-            ? sourceSm.teamAPlayers
-            : (baseSm.teamAPlayers || []);
-          const mergedTeamB = (sourceSm.teamBPlayers && sourceSm.teamBPlayers.length > 0)
-            ? sourceSm.teamBPlayers
-            : (baseSm.teamBPlayers || []);
-
+          const incomingSm = incoming.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
+          if (!incomingSm) return baseSm;
           return {
             ...baseSm,
-            ...sourceSm,
-            teamAPlayers: mergedTeamA,
-            teamBPlayers: mergedTeamB
+            ...incomingSm,
+            teamAPlayers: incomingSm.teamAPlayers || [],
+            teamBPlayers: incomingSm.teamBPlayers || []
           };
         })
       };
@@ -114,11 +86,14 @@ export class StorageService {
 
   static getMatches(): TieMatch[] {
     try {
-      let matches = INITIAL_TIE_MATCHES;
+      this.checkAndPerformInitialCleanReset();
       const data = localStorage.getItem(STORAGE_KEYS.TIE_MATCHES);
+      let matches: TieMatch[] = INITIAL_TIE_MATCHES;
       if (data) {
         const parsed = JSON.parse(data);
         matches = this.mergeMatchesWithInitial(parsed);
+      } else {
+        matches = INITIAL_TIE_MATCHES;
       }
 
       // Auto-hydrate matches with any submitted rosters from STORAGE_KEYS.LINEUPS
@@ -339,11 +314,50 @@ export class StorageService {
   static getGASConfig(): GASConfig {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.GAS_CONFIG);
-      if (data) return JSON.parse(data);
+      if (data) {
+        const parsed = JSON.parse(data);
+        const directUrl = localStorage.getItem(STORAGE_KEYS.GAS_URL_DIRECT);
+        if (directUrl && !parsed.webAppUrl) {
+          parsed.webAppUrl = directUrl;
+        }
+        return parsed;
+      }
     } catch (e) {
       console.error('Failed to parse GAS config', e);
     }
+    const directUrl = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.GAS_URL_DIRECT) : '';
+    if (directUrl) {
+      return { ...INITIAL_GAS_CONFIG, webAppUrl: directUrl, status: 'CONNECTED' };
+    }
     return INITIAL_GAS_CONFIG;
+  }
+
+  static getGasUrl(): string {
+    try {
+      const direct = localStorage.getItem(STORAGE_KEYS.GAS_URL_DIRECT);
+      if (direct && direct.trim()) return direct.trim();
+      const config = this.getGASConfig();
+      if (config.webAppUrl && config.webAppUrl.trim()) return config.webAppUrl.trim();
+    } catch (e) {}
+    return '';
+  }
+
+  static saveGasUrl(url: string): void {
+    const trimmed = (url || '').trim();
+    try {
+      localStorage.setItem(STORAGE_KEYS.GAS_URL_DIRECT, trimmed);
+      const config = this.getGASConfig();
+      config.webAppUrl = trimmed;
+      if (trimmed) {
+        config.status = 'CONNECTED';
+      }
+      this.saveGASConfig(config);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gasUrlUpdated', { detail: trimmed }));
+      }
+    } catch (e) {
+      console.error('Failed to save GAS URL in StorageService', e);
+    }
   }
 
   // ==========================================
@@ -395,6 +409,12 @@ export class StorageService {
   static saveGASConfig(config: GASConfig): void {
     try {
       localStorage.setItem(STORAGE_KEYS.GAS_CONFIG, JSON.stringify(config));
+      if (config.webAppUrl) {
+        localStorage.setItem(STORAGE_KEYS.GAS_URL_DIRECT, config.webAppUrl.trim());
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gasConfigUpdated', { detail: config }));
+      }
     } catch (e) {
       console.error('Failed to save GAS config', e);
     }
@@ -804,7 +824,14 @@ export class StorageService {
     }
 
     matches[tieIdx] = t;
-    this.saveMatches(matches);
+    try {
+      localStorage.setItem(STORAGE_KEYS.TIE_MATCHES, JSON.stringify(matches));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('matchesUpdated', { detail: matches }));
+      }
+    } catch (e) {
+      this.saveMatches(matches);
+    }
   }
 
   // Delete / Reset Entire Tie Match Results
@@ -835,12 +862,45 @@ export class StorageService {
     t.status = 'READY_TO_PLAY';
 
     matches[tieIdx] = t;
-    this.saveMatches(matches);
+    try {
+      localStorage.setItem(STORAGE_KEYS.TIE_MATCHES, JSON.stringify(matches));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('matchesUpdated', { detail: matches }));
+      }
+    } catch (e) {
+      this.saveMatches(matches);
+    }
+  }
+
+  /**
+   * Complete reset of all match results and lineups to blank state
+   * Preserves assigned roles and student accounts
+   */
+  static resetAllMatchesAndLineups(): void {
+    try {
+      // 1. Reset matches to pristine INITIAL_TIE_MATCHES
+      localStorage.setItem(STORAGE_KEYS.TIE_MATCHES, JSON.stringify(INITIAL_TIE_MATCHES));
+      
+      // 2. Clear all submitted rosters
+      localStorage.setItem(STORAGE_KEYS.LINEUPS, JSON.stringify([]));
+
+      // 3. Clear legacy keys if any
+      ['sinan_badminton_matches_v7', 'sinan_badminton_lineups_v7'].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) {}
+      });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('matchesUpdated', { detail: INITIAL_TIE_MATCHES }));
+        window.dispatchEvent(new CustomEvent('rostersUpdated', { detail: [] }));
+      }
+    } catch (e) {
+      console.error('Failed to reset all matches and lineups', e);
+    }
   }
 
   // Reset to Factory Default
   static resetToDefault(): void {
-    localStorage.removeItem(STORAGE_KEYS.TIE_MATCHES);
+    this.resetAllMatchesAndLineups();
     localStorage.removeItem(STORAGE_KEYS.SPORTS_REPS);
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     localStorage.removeItem(STORAGE_KEYS.CUSTOM_STUDENTS);

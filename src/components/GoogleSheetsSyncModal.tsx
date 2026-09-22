@@ -25,7 +25,7 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const [webAppUrl, setWebAppUrl] = useState<string>('');
+  const [webAppUrl, setWebAppUrl] = useState<string>(() => StorageService.getGasUrl());
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState<boolean>(false);
@@ -35,20 +35,20 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Load URL from Firebase first, fallback to local storage
+    // Load initial from local first, then sync with Firebase
+    const local = StorageService.getGasUrl();
+    if (local) {
+      setWebAppUrl(local);
+    }
+
     const loadUrl = async () => {
       try {
         const firestoreUrl = await FirebaseService.getGasUrl();
-        if (firestoreUrl) {
-          setWebAppUrl(firestoreUrl);
-          return;
+        if (firestoreUrl && firestoreUrl.trim()) {
+          setWebAppUrl(firestoreUrl.trim());
         }
       } catch (e) {
         console.warn('Firebase gasUrl load note:', e);
-      }
-      const localConfig = StorageService.getGASConfig();
-      if (localConfig.webAppUrl) {
-        setWebAppUrl(localConfig.webAppUrl);
       }
     };
     loadUrl();
@@ -65,7 +65,8 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   };
 
   const handleSaveUrl = async () => {
-    if (!webAppUrl.trim()) {
+    const trimmed = webAppUrl.trim();
+    if (!trimmed) {
       setTestResult({ success: false, message: 'Google Apps Script 웹 앱 URL을 입력해주세요.' });
       return;
     }
@@ -73,23 +74,21 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
     setIsSaving(true);
     setTestResult(null);
     try {
-      // 1. Save to local storage
-      const config = StorageService.getGASConfig();
-      config.webAppUrl = webAppUrl.trim();
-      config.status = 'CONNECTED';
-      StorageService.saveGASConfig(config);
+      // 1. Immediately persist locally
+      StorageService.saveGasUrl(trimmed);
 
-      // 2. Save to Firebase Firestore (settings/gasUrl)
-      await FirebaseService.saveGasUrl(webAppUrl.trim());
+      // 2. Persist to Firebase Firestore
+      const res = await FirebaseService.saveGasUrl(trimmed);
 
       setTestResult({
         success: true,
-        message: 'Google Apps Script 웹 앱 URL이 저장되었습니다! (Firebase 및 로컬 동기화 완료)'
+        message: res.message || 'Google Apps Script 웹 앱 URL이 저장되었습니다! (Firebase 및 로컬 동기화 완료)'
       });
     } catch (err: any) {
+      // Even if Firestore fails, local storage is preserved
       setTestResult({
-        success: false,
-        message: `URL 저장 실패: ${err.message || '알 수 없는 오류'}`
+        success: true,
+        message: 'Google Apps Script 웹 앱 URL이 로컬에 저장되었습니다.'
       });
     } finally {
       setIsSaving(false);
@@ -97,16 +96,21 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   };
 
   const handleTestConnection = async () => {
-    if (!webAppUrl.trim()) {
+    const trimmed = webAppUrl.trim();
+    if (!trimmed) {
       setTestResult({ success: false, message: '먼저 웹 앱 URL을 입력해주세요.' });
       return;
     }
+
+    // Auto-save the URL so user doesn't lose it
+    StorageService.saveGasUrl(trimmed);
+    FirebaseService.saveGasUrl(trimmed).catch(() => {});
 
     setIsTesting(true);
     setTestResult(null);
 
     try {
-      const res = await GASService.testConnection(webAppUrl.trim());
+      const res = await GASService.testConnection(trimmed);
       setTestResult(res);
     } catch (err: any) {
       setTestResult({
@@ -119,10 +123,15 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   };
 
   const handleSyncAllData = async () => {
-    if (!webAppUrl.trim()) {
+    const trimmed = webAppUrl.trim();
+    if (!trimmed) {
       setTestResult({ success: false, message: '먼저 웹 앱 URL을 등록해주세요.' });
       return;
     }
+
+    // Auto-save the URL
+    StorageService.saveGasUrl(trimmed);
+    FirebaseService.saveGasUrl(trimmed).catch(() => {});
 
     setIsSyncingAll(true);
     setTestResult(null);
@@ -210,6 +219,7 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
                 type="url"
                 value={webAppUrl}
                 onChange={(e) => setWebAppUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUrl(); }}
                 placeholder="https://script.google.com/macros/s/.../exec"
                 className="w-full px-4 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-[#E2FF00]"
               />

@@ -67,6 +67,9 @@ export default function App() {
 
   // Synchronize initial data with Firebase Firestore on mount & subscribe to roles
   useEffect(() => {
+    // Check and perform one-time clean reset of matches & lineups if needed
+    StorageService.checkAndPerformInitialCleanReset();
+
     const syncWithFirebase = async () => {
       try {
         const firestoreMatches = await FirebaseService.getMatches();
@@ -258,11 +261,11 @@ export default function App() {
         {/* TAB 5: TEACHER DASHBOARD (Admin Only) */}
         {activeTab === 'TEACHER' && (
           <TeacherDashboard
-            key={`teacher-${refreshKey}`}
             currentUser={currentUser}
             onOpenLogin={() => setIsLoginModalOpen(true)}
             onOpenGAS={() => setIsGASModalOpen(true)}
             onOpenScoreEdit={(tieMatchId) => handleOpenResultEntry(tieMatchId, '')}
+            refreshKey={refreshKey}
           />
         )}
       </main>
