@@ -44,7 +44,6 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
   const [scoreA, setScoreA] = useState<number>(0);
   const [scoreB, setScoreB] = useState<number>(0);
   const [servingTeam, setServingTeam] = useState<'A' | 'B'>('A');
-  const [mvpName, setMvpName] = useState<string>('');
 
   useEffect(() => {
     if (!isOpen || !tieMatchId || !subMatchId) return;
@@ -66,10 +65,6 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
     }
 
     if (sm.servingTeam) setServingTeam(sm.servingTeam);
-
-    if (sm.stats) {
-      setMvpName(sm.stats.mvpPlayerName || '');
-    }
   }, [isOpen, tieMatchId, subMatchId]);
 
   if (!isOpen || !tie || !subMatch) return null;
@@ -147,7 +142,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
         dropPointsB: 0,
         serviceAcesA: 0,
         serviceAcesB: 0,
-        mvpPlayerName: mvpName || (winner === 'A' ? subMatch.teamAPlayers[0]?.name : subMatch.teamBPlayers[0]?.name) || '',
+        mvpPlayerName: '',
         durationMinutes: 15
       }
     };
@@ -263,7 +258,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
               <ShieldCheck className="w-4 h-4 text-[#E2FF00]" />
               기록원 입력 권한 활성화됨 ({currentUser?.name}) [{isCouncilRole(currentUser?.role) ? '학생자치회' : isCaptainRole(currentUser?.role) ? '체육부장/반장' : '체육교사'}]
             </span>
-            <span className="text-[11px] text-white/50">실시간 스코어 및 MVP 저장 가능</span>
+            <span className="text-[11px] text-white/50">실시간 스코어 저장 가능</span>
           </div>
         )}
 
@@ -396,42 +391,6 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
               )}
             </div>
 
-          </div>
-
-          {/* MVP manual input section */}
-          <div className="p-4 sm:p-5 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Award className="w-4 h-4 text-[#E2FF00]" />
-                <label className="text-xs font-bold text-white">경기 MVP 선수 (수동 직접 입력):</label>
-              </div>
-              <span className="text-[11px] text-[#E2FF00] font-mono font-bold">수동 입력 지원</span>
-            </div>
-
-            <input
-              type="text"
-              disabled={!canEditScore}
-              value={mvpName}
-              onChange={(e) => setMvpName(e.target.value)}
-              placeholder="MVP 선수 이름 직접 입력 (예: 1학년 1반 김민준 또는 홍길동)"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-[#E2FF00] font-bold text-xs sm:text-sm focus:outline-none focus:border-[#E2FF00] placeholder-white/20 disabled:opacity-60"
-            />
-
-            {/* Quick-pick player chips */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[10px] text-white/40 font-medium mr-1">출전선수 빠른선택:</span>
-              {[...subMatch.teamAPlayers, ...subMatch.teamBPlayers].map((p, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  disabled={!canEditScore}
-                  onClick={() => setMvpName(`${p.grade}학년 ${p.classNum}반 ${p.name}`)}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-[#E2FF00]/10 hover:text-[#E2FF00] border border-white/10 text-white/70 text-[11px] transition disabled:opacity-40"
-                >
-                  {p.grade}-{p.classNum} {p.name}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Bottom Actions */}

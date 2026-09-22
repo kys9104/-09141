@@ -26,8 +26,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 }) => {
   const [grade, setGrade] = useState<GradeLevel>(1);
   const [classNum, setClassNum] = useState<number>(1);
-  const [studentNum, setStudentNum] = useState<number>(1);
-  const [name, setName] = useState<string>('곽승준');
+  const [studentNum, setStudentNum] = useState<number>(10);
+  const [name, setName] = useState<string>('선준혁');
   // Default to student council login
   const [role, setRole] = useState<UserRole>('council');
   const [teacherPassword, setTeacherPassword] = useState<string>('');
@@ -53,23 +53,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       }
 
       // Check if this student was assigned a role by the teacher (Local + Firestore)
-      const assignedLocal = StorageService.findAssignedRole(grade, classNum, studentNum);
+      const preferred = (role === 'council' || role === 'STUDENT_COUNCIL') ? 'council' : 'captain';
+      const assignedLocal = StorageService.findAssignedRole(grade, classNum, studentNum, preferred);
       if (assignedLocal) {
         setDetectedAssignedRole(assignedLocal.role);
-        if (assignedLocal.role === 'council') {
-          setRole('council');
-        } else if (assignedLocal.role === 'captain') {
-          setRole('captain');
-        }
       } else {
         FirebaseService.checkAssignedRole(grade, classNum, studentNum).then(r => {
           if (r === 'council' || r === 'captain') {
             setDetectedAssignedRole(r);
-            if (r === 'council') {
-              setRole('council');
-            } else if (r === 'captain') {
-              setRole('captain');
-            }
           } else {
             setDetectedAssignedRole(null);
           }
@@ -358,11 +349,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   onChange={(e) => setStudentNum(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg bg-[#0A0F1D] border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#E2FF00]"
                 >
-                  {classRoster.map(s => (
-                    <option key={s.num} value={s.num}>
-                      {s.num}번 {s.name} ({s.gender === 'M' ? '남' : '여'})
-                    </option>
-                  ))}
+                  {classRoster.map(s => {
+                    const isCouncil = StorageService.findAssignedRole(grade, classNum, s.num, 'council');
+                    const isCaptain = StorageService.findAssignedRole(grade, classNum, s.num, 'captain');
+                    let tag = '';
+                    if (isCouncil && isCaptain) tag = ' ⭐ [학생자치회 & 체육부장/반장]';
+                    else if (isCouncil) tag = ' 🔹 [학생자치회]';
+                    else if (isCaptain) tag = ' 🏅 [체육부장/반장]';
+
+                    return (
+                      <option key={s.num} value={s.num}>
+                        {s.num}번 {s.name} ({s.gender === 'M' ? '남' : '여'}){tag}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

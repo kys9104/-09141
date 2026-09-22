@@ -11,6 +11,7 @@ import {
 import { 
   INITIAL_TIE_MATCHES, 
   DEFAULT_SPORTS_REPRESENTATIVES,
+  DEFAULT_ASSIGNED_ROLES,
   INITIAL_GAS_CONFIG,
   SAMPLE_STUDENTS
 } from '../data/initialData';
@@ -231,11 +232,20 @@ export class StorageService {
   static getAssignedRoles(): AssignedRoleRecord[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.ASSIGNED_ROLES);
-      if (data) return JSON.parse(data);
+      if (data) {
+        const parsed: AssignedRoleRecord[] = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          // Merge defaults with saved so required roles are guaranteed to exist
+          const map = new Map<string, AssignedRoleRecord>();
+          DEFAULT_ASSIGNED_ROLES.forEach(r => map.set(`${r.grade}-${r.classNum}-${r.studentNum}-${r.role}`, r as AssignedRoleRecord));
+          parsed.forEach(r => map.set(`${r.grade}-${r.classNum}-${r.studentNum}-${r.role}`, r));
+          return Array.from(map.values());
+        }
+      }
     } catch (e) {
       console.error('Failed to parse assigned roles', e);
     }
-    return [];
+    return DEFAULT_ASSIGNED_ROLES as AssignedRoleRecord[];
   }
 
   static saveAssignedRoles(roles: AssignedRoleRecord[]): void {
@@ -244,11 +254,11 @@ export class StorageService {
       const current = this.getAssignedRoles();
       const map = new Map<string, AssignedRoleRecord>();
       current.forEach(r => {
-        const key = `${r.grade}-${r.classNum}-${r.studentNum}`;
+        const key = `${r.grade}-${r.classNum}-${r.studentNum}-${r.role}`;
         map.set(key, r);
       });
       roles.forEach(r => {
-        const key = `${r.grade}-${r.classNum}-${r.studentNum}`;
+        const key = `${r.grade}-${r.classNum}-${r.studentNum}-${r.role}`;
         map.set(key, r);
       });
       localStorage.setItem(STORAGE_KEYS.ASSIGNED_ROLES, JSON.stringify(Array.from(map.values())));
@@ -263,7 +273,8 @@ export class StorageService {
       r.id === record.id || 
       (Number(r.grade) === Number(record.grade) && 
        Number(r.classNum) === Number(record.classNum) && 
-       Number(r.studentNum) === Number(record.studentNum))
+       Number(r.studentNum) === Number(record.studentNum) &&
+       r.role === record.role)
     );
     if (existingIndex >= 0) {
       roles[existingIndex] = record;
@@ -307,8 +318,17 @@ export class StorageService {
     }
   }
 
-  static findAssignedRole(grade: GradeLevel, classNum: number, studentNum: number): AssignedRoleRecord | undefined {
+  static findAssignedRole(grade: GradeLevel, classNum: number, studentNum: number, preferredRole?: 'captain' | 'council'): AssignedRoleRecord | undefined {
     const roles = this.getAssignedRoles();
+    if (preferredRole) {
+      const match = roles.find(r => 
+        Number(r.grade) === Number(grade) && 
+        Number(r.classNum) === Number(classNum) && 
+        Number(r.studentNum) === Number(studentNum) &&
+        r.role === preferredRole
+      );
+      if (match) return match;
+    }
     return roles.find(r => 
       Number(r.grade) === Number(grade) && 
       Number(r.classNum) === Number(classNum) && 

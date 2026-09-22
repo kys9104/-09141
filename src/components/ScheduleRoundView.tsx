@@ -488,20 +488,6 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                             </span>
                           </div>
 
-                          {/* MVP & Quick Stats if completed */}
-                          {sm.stats && sm.stats.mvpPlayerName && (
-                            <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center justify-between text-[11px] text-white/50 font-mono">
-                              <div className="flex items-center gap-1.5 text-[#E2FF00] font-bold">
-                                <Award className="w-3.5 h-3.5 text-[#E2FF00]" />
-                                <span>MVP: {sm.stats.mvpPlayerName}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-white/40">
-                                <span>스매시: {sm.stats.smashWinnersA || 0}/{sm.stats.smashWinnersB || 0}</span>
-                                <span>{sm.stats.durationMinutes || 0}분</span>
-                              </div>
-                            </div>
-                          )}
-
                           {/* Action buttons */}
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             {/* Primary Result Lookup Button (For ALL Students, Referees, Teachers) */}
@@ -618,7 +604,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                 {deleteConfirmModal.title}
               </div>
               <p className="text-white/60 leading-relaxed">
-                해당 경기의 입력된 <strong>최종 점수, 승패 기록, MVP 선수</strong> 데이터가 즉시 삭제되고 경기 전 상태로 초기화됩니다. 리그 순위표와 지표 통계도 자동 재계산됩니다.
+                해당 경기의 입력된 <strong>최종 점수, 승패 기록</strong> 데이터가 즉시 삭제되고 경기 전 상태로 초기화됩니다. 리그 순위표와 지표 통계도 자동 재계산됩니다.
               </p>
             </div>
 

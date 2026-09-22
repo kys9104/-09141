@@ -4,7 +4,8 @@ import {
   Player, 
   TieMatch, 
   SubMatch, 
-  GASConfig
+  GASConfig,
+  GradeLevel
 } from '../types';
 
 export const CATEGORIES: CategoryInfo[] = [
@@ -219,13 +220,42 @@ export const SAMPLE_STUDENTS: Record<string, Player[]> = {
   '2-2': createClassRoster(2, 2),
 };
 
-// Default Sports Representatives
+// Default Sports Representatives (체육부장 / 반장)
 export const DEFAULT_SPORTS_REPRESENTATIVES: Record<string, string> = {
-  '1-1': '곽승준',
-  '1-2': '강성수',
-  '2-1': '강성률',
-  '2-2': '김대륜'
+  '1-1': '선준혁',
+  '1-2': '김예준',
+  '2-1': '김예찬',
+  '2-2': '박찬수'
 };
+
+export interface DefaultAssignedRole {
+  id: string;
+  grade: GradeLevel;
+  classNum: number;
+  studentNum: number;
+  name: string;
+  role: 'captain' | 'council';
+  assignedAt: string;
+  assignedBy?: string;
+}
+
+// Default Assigned Roles (체육부장/반장 및 학생자치회 명단)
+export const DEFAULT_ASSIGNED_ROLES: DefaultAssignedRole[] = [
+  // 체육부장 / 반장 (4명)
+  { id: '1-1-10-captain', grade: 1, classNum: 1, studentNum: 10, name: '선준혁', role: 'captain', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '1-2-4-captain', grade: 1, classNum: 2, studentNum: 4, name: '김예준', role: 'captain', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '2-1-6-captain', grade: 2, classNum: 1, studentNum: 6, name: '김예찬', role: 'captain', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '2-2-8-captain', grade: 2, classNum: 2, studentNum: 8, name: '박찬수', role: 'captain', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+
+  // 학생자치회 (7명)
+  { id: '1-1-10-council', grade: 1, classNum: 1, studentNum: 10, name: '선준혁', role: 'council', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '1-1-8-council', grade: 1, classNum: 1, studentNum: 8, name: '박호연', role: 'council', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '2-1-1-council', grade: 2, classNum: 1, studentNum: 1, name: '강성률', role: 'council', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '2-1-11-council', grade: 2, classNum: 1, studentNum: 11, name: '이하늘', role: 'council', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '2-1-4-council', grade: 2, classNum: 1, studentNum: 4, name: '김서준', role: 'council', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '2-1-8-council', grade: 2, classNum: 1, studentNum: 8, name: '김현우', role: 'council', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' },
+  { id: '2-2-17-council', grade: 2, classNum: 2, studentNum: 17, name: '하태민', role: 'council', assignedAt: '2026-03-01T00:00:00Z', assignedBy: '체육교사' }
+];
 
 // Helper to create 5 submatches per tie match (Single-set 15-point games)
 // Match 1 -> Court 1, Court 2 | Match 2 -> Court 3, Court 4

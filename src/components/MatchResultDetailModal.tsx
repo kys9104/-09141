@@ -234,10 +234,10 @@ export const MatchResultDetailModal: React.FC<MatchResultDetailModalProps> = ({
           <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-3">
             <h4 className="text-xs font-bold text-white/70 font-mono uppercase tracking-wider flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#E2FF00]" />
-              공식 경기 인증 정보 (심판진·기록자·MVP)
+              공식 경기 인증 정보 (심판진·기록자)
             </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               
               {/* Referee (심판진) */}
               <div className="p-3 rounded-lg bg-white/5 border border-white/5">
@@ -261,18 +261,6 @@ export const MatchResultDetailModal: React.FC<MatchResultDetailModalProps> = ({
                   {subMatch.recordedBy || '학생자치회 경기운영부'}
                 </div>
                 <div className="text-[10px] text-white/40 mt-0.5">스코어 집계 및 공식 입력</div>
-              </div>
-
-              {/* MVP Player */}
-              <div className="p-3 rounded-lg bg-white/5 border border-white/5">
-                <span className="text-[11px] font-medium text-white/50 block mb-1">
-                  🏆 경기 MVP 선수
-                </span>
-                <div className="text-sm font-bold text-[#E2FF00] flex items-center gap-1">
-                  <Award className="w-4 h-4 text-[#E2FF00]" />
-                  <span>{subMatch.stats?.mvpPlayerName || (isCompleted ? '선수 전원 우수' : '경기 종료 후 선정')}</span>
-                </div>
-                <div className="text-[10px] text-white/40 mt-0.5">우수 활약 선수 인증</div>
               </div>
 
             </div>
