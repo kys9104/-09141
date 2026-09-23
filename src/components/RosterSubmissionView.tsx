@@ -3,7 +3,6 @@ import {
   UserCheck, 
   CheckCircle2, 
   AlertCircle, 
-  Clock, 
   Send, 
   Calendar,
   Layers,
@@ -471,15 +470,6 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
                   </option>
                 ))}
               </select>
-            </div>
-
-            {/* Deadline Notice */}
-            <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 flex items-center gap-2 text-xs text-white/60 font-mono">
-              <Clock className="w-4 h-4 text-[#E2FF00] shrink-0" />
-              <div>
-                <div className="text-[10px] text-white/40">제출 마감일시</div>
-                <div className="text-white font-bold">{roundInfo.deadlineDate}</div>
-              </div>
             </div>
           </div>
 

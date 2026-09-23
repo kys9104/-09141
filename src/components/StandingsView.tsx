@@ -413,11 +413,6 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
                 </div>
               </div>
             </div>
-
-            <div className="p-3 rounded-xl bg-[#0E1424] border border-white/5">
-              <span className="font-bold text-white block mb-1">⏱️ 출전 명단 제출 기한</span>
-              각 라운드 <strong className="text-[#E2FF00]">경기 1일 전 23:59까지</strong> 각 반 체육부장이 5개 종목 출전 선수를 작성하여 제출 완료해야 합니다.
-            </div>
           </div>
         </div>
 

@@ -4,7 +4,6 @@ import {
   UserCheck, 
   CheckCircle2, 
   AlertCircle, 
-  Clock, 
   Users
 } from 'lucide-react';
 import { 
@@ -284,13 +283,10 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
 
       setMessage({ 
         type: 'success', 
-        text: `${selectedGrade}학년 ${selectedClass}반 출전 명단이 성공적으로 저장되었습니다!` 
+        text: `✓ ${selectedGrade}학년 ${selectedClass}반 출전 명단이 성공적으로 저장되었습니다.` 
       });
 
-      setTimeout(() => {
-        onSaved();
-        onClose();
-      }, 700);
+      onSaved();
     } catch (err: any) {
       console.error('Failed to save roster:', err);
       setMessage({
@@ -323,10 +319,6 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
               <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
                 제{roundId}라운드 출전 선수 명단 작성
               </h2>
-              <div className="flex items-center gap-2 text-xs text-white/50 mt-0.5 font-mono">
-                <Clock className="w-3.5 h-3.5 text-[#E2FF00]" />
-                <span>제출 마감: <strong className="text-[#E2FF00]">{roundInfo.deadlineDate} (경기 1일전)</strong></span>
-              </div>
             </div>
           </div>
           <button

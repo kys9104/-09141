@@ -208,10 +208,6 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                 {currentRound.date}
               </span>
             </div>
-            <div className="text-xs text-white/50 flex items-center gap-2 mt-0.5">
-              <Clock className="w-3.5 h-3.5 text-[#E2FF00]" />
-              <span>명단 마감: <strong className="text-white/90 font-mono">{currentRound.deadlineDate}</strong></span>
-            </div>
           </div>
         </div>
 
