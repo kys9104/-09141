@@ -14,8 +14,6 @@ import {
 import confetti from 'canvas-confetti';
 import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile, isAdminRole, isCouncilRole, isCaptainRole } from '../types';
 import { StorageService } from '../services/storageService';
-import { GASService } from '../services/gasService';
-import { GoogleSheetsService } from '../services/googleSheetsService';
 import { FirebaseService } from '../services/firebaseService';
 
 interface MatchResultEntryModalProps {
@@ -194,13 +192,8 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
     matches[tieIdx] = t;
     StorageService.saveMatches(matches);
 
-    // Auto-sync with Firebase, Google Sheets REST API & GAS
+    // Auto-sync with Firebase real-time database
     await FirebaseService.saveMatch(t, submitterName).catch(console.error);
-
-    GoogleSheetsService.appendMatchResult(t, submitterName).catch(err => {
-      console.warn('Google Sheets sync notice:', err.message);
-    });
-    GASService.sendToGAS('MATCH_RESULT', t).catch(console.error);
 
     confetti({
       particleCount: 100,
@@ -404,7 +397,7 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
               className="w-2/3 py-3 rounded-xl text-xs sm:text-sm font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)] transition flex items-center justify-center gap-2"
             >
               <CheckCircle2 className="w-4 h-4 text-black" />
-              <span>경기 결과 확정 및 시트 전송</span>
+              <span>경기 결과 확정 및 저장</span>
             </button>
           </div>
         </form>

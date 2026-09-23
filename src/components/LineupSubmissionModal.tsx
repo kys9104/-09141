@@ -20,7 +20,6 @@ import {
 import { LEAGUE_ROUNDS } from '../data/initialData';
 import { StorageService } from '../services/storageService';
 import { FirebaseService } from '../services/firebaseService';
-import { GASService } from '../services/gasService';
 
 interface LineupSubmissionModalProps {
   isOpen: boolean;
@@ -247,9 +246,6 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
 
         // Sync match to Firebase Firestore
         await FirebaseService.saveMatch(updatedTie, submitterInfo);
-
-        // Send async webhook to Google Apps Script
-        GASService.sendToGAS('MATCH_RESULT', updatedTie).catch(console.error);
       }
 
       // 2. Save individual rosters for each category to Firebase & local storage

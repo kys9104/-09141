@@ -13,7 +13,7 @@ import {
   where,
   getDocFromServer
 } from 'firebase/firestore';
-import { auth } from './googleAuthService';
+import { auth, signInAnonymously } from './googleAuthService';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { UserProfile, UserRole, TieMatch, LineupEntry, GradeLevel, MatchCategory } from '../types';
 import { INITIAL_TIE_MATCHES } from '../data/initialData';
@@ -28,7 +28,6 @@ export async function testFirestoreConnection(): Promise<boolean> {
     await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
   } catch (error) {
-    // If client is offline or document not found, normal in first run
     console.log('Firestore connection verified');
     return true;
   }
@@ -551,70 +550,64 @@ export class FirebaseService {
   }
 
   /**
+   * Ensure active auth state (anonymous auth if unauthenticated)
+   */
+  static async ensureAuth(): Promise<void> {
+    try {
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
+    } catch (e) {
+      // Permission rules allow open access, so unauthenticated access also works
+    }
+  }
+
+  /**
+   * Ensure cloud matches collection is populated with schedule structure
+   */
+  static async initializeCloudMatchesIfEmpty(): Promise<TieMatch[]> {
+    try {
+      await this.ensureAuth();
+      const existing = await this.getMatches();
+      if (existing && existing.length >= INITIAL_TIE_MATCHES.length) {
+        return existing;
+      }
+
+      // Seed any missing matches
+      const mergedList = INITIAL_TIE_MATCHES.map(baseMatch => {
+        const found = existing.find(e => e.id === baseMatch.id);
+        return found || baseMatch;
+      });
+
+      // Save all in parallel
+      const promises = mergedList.map(async (m) => {
+        const matchRef = doc(db, 'matches', m.id);
+        const sanitized = this.sanitizeForFirestore({
+          ...m,
+          updatedAt: new Date().toISOString(),
+          updatedBy: '시스템(초기일정동기화)'
+        });
+        return setDoc(matchRef, sanitized, { merge: true });
+      });
+
+      await Promise.allSettled(promises);
+      return mergedList;
+    } catch (e) {
+      console.warn('initializeCloudMatchesIfEmpty fallback:', e);
+      return INITIAL_TIE_MATCHES;
+    }
+  }
+
+  /**
    * Delete or reset match in Firestore (Admin only)
    */
   static async deleteMatch(matchId: string): Promise<void> {
     try {
+      await this.ensureAuth();
       const matchRef = doc(db, 'matches', matchId);
       await deleteDoc(matchRef);
     } catch (e) {
       console.warn('Firebase deleteMatch error:', e);
-    }
-  }
-
-  // ==========================================
-  // SETTINGS (GAS URL 등)
-  // ==========================================
-
-  /**
-   * Get settings/gasUrl from Firestore with local storage fallback
-   */
-  static async getGasUrl(): Promise<string> {
-    const localUrl = StorageService.getGasUrl();
-    try {
-      const settingsRef = doc(db, 'settings', 'gasUrl');
-      const snapPromise = getDoc(settingsRef);
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
-      const snap: any = await Promise.race([snapPromise, timeoutPromise]);
-      
-      if (snap && snap.exists() && snap.data()?.gasUrl) {
-        const cloudUrl = snap.data().gasUrl.trim();
-        if (cloudUrl) {
-          StorageService.saveGasUrl(cloudUrl);
-          return cloudUrl;
-        }
-      }
-    } catch (e) {
-      console.warn('Firebase getGasUrl error:', e);
-    }
-    return localUrl || '';
-  }
-
-  /**
-   * Save settings/gasUrl to Firestore and local storage (Admin only)
-   */
-  static async saveGasUrl(gasUrl: string, updatedBy: string = ''): Promise<{ success: boolean; message: string }> {
-    const trimmed = (gasUrl || '').trim();
-    // 1. Immediately persist locally
-    StorageService.saveGasUrl(trimmed);
-
-    try {
-      const settingsRef = doc(db, 'settings', 'gasUrl');
-      const writePromise = setDoc(settingsRef, {
-        gasUrl: trimmed,
-        updatedAt: new Date().toISOString(),
-        updatedBy: updatedBy || auth.currentUser?.email || '체육교사'
-      }, { merge: true });
-
-      const timeoutPromise = new Promise<{ success: boolean; message: string }>((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase saveGasUrl 타임아웃')), 4000)
-      );
-
-      await Promise.race([writePromise, timeoutPromise]);
-      return { success: true, message: '구글 시트 웹앱 URL이 성공적으로 저장되었습니다.' };
-    } catch (e) {
-      console.warn('Firebase saveGasUrl warning (saved locally):', e);
-      return { success: true, message: '구글 시트 웹앱 URL이 로컬에 저장되었습니다.' };
     }
   }
 
@@ -623,6 +616,7 @@ export class FirebaseService {
    */
   static async resetAllCloudMatchesAndRosters(): Promise<{ success: boolean; message: string }> {
     try {
+      await this.ensureAuth();
       // 1. Overwrite all matches in Firestore with clean INITIAL_TIE_MATCHES
       const matchPromises = INITIAL_TIE_MATCHES.map(async (m) => {
         const matchRef = doc(db, 'matches', m.id);

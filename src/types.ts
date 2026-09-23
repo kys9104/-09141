@@ -168,10 +168,3 @@ export interface ClassStanding {
   scoreDiff: number;
   rank: number;
 }
-
-export interface GASConfig {
-  webAppUrl: string;
-  autoSync: boolean;
-  lastSyncedAt?: string;
-  status: 'DISCONNECTED' | 'CONNECTED' | 'ERROR';
-}

@@ -3,7 +3,6 @@ import {
   ClassStanding, 
   Player, 
   GradeLevel, 
-  GASConfig, 
   UserProfile,
   LineupEntry,
   MatchCategory
@@ -12,15 +11,12 @@ import {
   INITIAL_TIE_MATCHES, 
   DEFAULT_SPORTS_REPRESENTATIVES,
   DEFAULT_ASSIGNED_ROLES,
-  INITIAL_GAS_CONFIG,
   SAMPLE_STUDENTS
 } from '../data/initialData';
 
 const STORAGE_KEYS = {
   TIE_MATCHES: 'sinan_badminton_matches_v8',
   SPORTS_REPS: 'sinan_badminton_sports_reps_v8',
-  GAS_CONFIG: 'sinan_badminton_gas_config_v8',
-  GAS_URL_DIRECT: 'sinan_badminton_gas_url_v8',
   CURRENT_USER: 'sinan_badminton_current_user_v8',
   LINEUPS: 'sinan_badminton_lineups_v8',
   CUSTOM_STUDENTS: 'sinan_badminton_students_v8',
@@ -41,19 +37,10 @@ export interface AssignedRoleRecord {
 
 export class StorageService {
   /**
-   * One-time check on application startup to ensure matches and rosters are reset to clean state
+   * Initial clean reset flag check (no-op to prevent wiping mobile clients)
    */
   static checkAndPerformInitialCleanReset(): void {
-    try {
-      if (typeof window === 'undefined') return;
-      const isCleaned = localStorage.getItem(STORAGE_KEYS.CLEAN_RESET_FLAG);
-      if (isCleaned !== 'true') {
-        this.resetAllMatchesAndLineups();
-        localStorage.setItem(STORAGE_KEYS.CLEAN_RESET_FLAG, 'true');
-      }
-    } catch (e) {
-      console.warn('Initial clean reset note:', e);
-    }
+    // Intentionally no-op to preserve shared cloud state and prevent local data wipes
   }
 
   /**
@@ -86,7 +73,6 @@ export class StorageService {
 
   static getMatches(): TieMatch[] {
     try {
-      this.checkAndPerformInitialCleanReset();
       const data = localStorage.getItem(STORAGE_KEYS.TIE_MATCHES);
       let matches: TieMatch[] = INITIAL_TIE_MATCHES;
       if (data) {
@@ -311,55 +297,6 @@ export class StorageService {
     );
   }
 
-  static getGASConfig(): GASConfig {
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.GAS_CONFIG);
-      if (data) {
-        const parsed = JSON.parse(data);
-        const directUrl = localStorage.getItem(STORAGE_KEYS.GAS_URL_DIRECT);
-        if (directUrl && !parsed.webAppUrl) {
-          parsed.webAppUrl = directUrl;
-        }
-        return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to parse GAS config', e);
-    }
-    const directUrl = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.GAS_URL_DIRECT) : '';
-    if (directUrl) {
-      return { ...INITIAL_GAS_CONFIG, webAppUrl: directUrl, status: 'CONNECTED' };
-    }
-    return INITIAL_GAS_CONFIG;
-  }
-
-  static getGasUrl(): string {
-    try {
-      const direct = localStorage.getItem(STORAGE_KEYS.GAS_URL_DIRECT);
-      if (direct && direct.trim()) return direct.trim();
-      const config = this.getGASConfig();
-      if (config.webAppUrl && config.webAppUrl.trim()) return config.webAppUrl.trim();
-    } catch (e) {}
-    return '';
-  }
-
-  static saveGasUrl(url: string): void {
-    const trimmed = (url || '').trim();
-    try {
-      localStorage.setItem(STORAGE_KEYS.GAS_URL_DIRECT, trimmed);
-      const config = this.getGASConfig();
-      config.webAppUrl = trimmed;
-      if (trimmed) {
-        config.status = 'CONNECTED';
-      }
-      this.saveGASConfig(config);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('gasUrlUpdated', { detail: trimmed }));
-      }
-    } catch (e) {
-      console.error('Failed to save GAS URL in StorageService', e);
-    }
-  }
-
   // ==========================================
   // ROSTERS (LINEUPS)
   // ==========================================
@@ -375,12 +312,17 @@ export class StorageService {
 
   static saveAllRosters(rosters: LineupEntry[]): void {
     try {
-      if (!rosters || rosters.length === 0) return;
+      if (!rosters) return;
       const current = this.getRosters();
       const map = new Map<string, LineupEntry>();
       current.forEach(r => map.set(`${r.roundId}_${r.grade}_${r.classNum}_${r.category}`, r));
       rosters.forEach(r => map.set(`${r.roundId}_${r.grade}_${r.classNum}_${r.category}`, r));
-      localStorage.setItem(STORAGE_KEYS.LINEUPS, JSON.stringify(Array.from(map.values())));
+      const combined = Array.from(map.values());
+      localStorage.setItem(STORAGE_KEYS.LINEUPS, JSON.stringify(combined));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('rostersUpdated', { detail: combined }));
+        window.dispatchEvent(new CustomEvent('matchesUpdated', { detail: this.getMatches() }));
+      }
     } catch (e) {
       console.error('Failed to save lineups', e);
     }
@@ -401,22 +343,12 @@ export class StorageService {
     }
     try {
       localStorage.setItem(STORAGE_KEYS.LINEUPS, JSON.stringify(list));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('rostersUpdated', { detail: list }));
+        window.dispatchEvent(new CustomEvent('matchesUpdated', { detail: this.getMatches() }));
+      }
     } catch (e) {
       console.error('Failed to save single roster', e);
-    }
-  }
-
-  static saveGASConfig(config: GASConfig): void {
-    try {
-      localStorage.setItem(STORAGE_KEYS.GAS_CONFIG, JSON.stringify(config));
-      if (config.webAppUrl) {
-        localStorage.setItem(STORAGE_KEYS.GAS_URL_DIRECT, config.webAppUrl.trim());
-      }
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('gasConfigUpdated', { detail: config }));
-      }
-    } catch (e) {
-      console.error('Failed to save GAS config', e);
     }
   }
 

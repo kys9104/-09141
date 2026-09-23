@@ -9,7 +9,6 @@ import { LoginModal } from './components/LoginModal';
 import { LineupSubmissionModal } from './components/LineupSubmissionModal';
 import { MatchResultEntryModal } from './components/MatchResultEntryModal';
 import { LiveScoreModal } from './components/LiveScoreModal';
-import { GoogleSheetsSyncModal } from './components/GoogleSheetsSyncModal';
 
 import { UserProfile, isAdminRole, isCaptainRole } from './types';
 import { StorageService } from './services/storageService';
@@ -59,35 +58,48 @@ export default function App() {
     subMatchId: null
   });
 
-  // GAS Integration modal state
-  const [isGASModalOpen, setIsGASModalOpen] = useState<boolean>(false);
-
   // Sync state trigger
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  // Synchronize initial data with Firebase Firestore on mount & subscribe to roles
+  // Synchronize initial data with Firebase Firestore on mount & subscribe to real-time changes
   useEffect(() => {
-    // Check and perform one-time clean reset of matches & lineups if needed
-    StorageService.checkAndPerformInitialCleanReset();
+    let isMounted = true;
 
     const syncWithFirebase = async () => {
       try {
-        const firestoreMatches = await FirebaseService.getMatches();
-        if (firestoreMatches && firestoreMatches.length > 0) {
+        await FirebaseService.ensureAuth();
+        const firestoreMatches = await FirebaseService.initializeCloudMatchesIfEmpty();
+        if (isMounted && firestoreMatches && firestoreMatches.length > 0) {
           StorageService.saveMatches(firestoreMatches);
         }
         const firestoreRosters = await FirebaseService.getRosters();
-        if (firestoreRosters && firestoreRosters.length > 0) {
+        if (isMounted && firestoreRosters && firestoreRosters.length > 0) {
           StorageService.saveAllRosters(firestoreRosters);
         }
-        setRefreshKey(k => k + 1);
+        const firestoreRoles = await FirebaseService.getAssignedRoles();
+        if (isMounted && firestoreRoles && firestoreRoles.length > 0) {
+          const localList = firestoreRoles.map(item => ({
+            id: item.id,
+            grade: item.grade,
+            classNum: item.classNum,
+            studentNum: item.studentNum,
+            name: item.name,
+            role: item.role,
+            assignedAt: item.assignedAt,
+            assignedBy: item.assignedBy
+          }));
+          StorageService.saveAssignedRoles(localList);
+        }
+        if (isMounted) {
+          setRefreshKey(k => k + 1);
+        }
       } catch (err) {
         console.warn('Initial Firebase sync note:', err);
       }
     };
     syncWithFirebase();
 
-    // Realtime subscription for matches to keep all clients synced
+    // Realtime subscription for matches to keep all devices/browsers synced
     const unsubscribeMatches = FirebaseService.subscribeMatches((liveMatches) => {
       if (liveMatches && liveMatches.length > 0) {
         StorageService.saveMatches(liveMatches);
@@ -97,7 +109,7 @@ export default function App() {
 
     // Realtime subscription for rosters so team lineups sync seamlessly
     const unsubscribeRosters = FirebaseService.subscribeRosters((liveRosters) => {
-      if (liveRosters && liveRosters.length > 0) {
+      if (liveRosters) {
         StorageService.saveAllRosters(liveRosters);
         setRefreshKey(k => k + 1);
       }
@@ -154,6 +166,7 @@ export default function App() {
     window.addEventListener('rostersUpdated', handleRostersEvt);
 
     return () => {
+      isMounted = false;
       unsubscribeRoles();
       unsubscribeMatches();
       unsubscribeRosters();
@@ -217,7 +230,6 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
-        onOpenGoogleSheets={() => setIsGASModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -263,7 +275,6 @@ export default function App() {
           <TeacherDashboard
             currentUser={currentUser}
             onOpenLogin={() => setIsLoginModalOpen(true)}
-            onOpenGAS={() => setIsGASModalOpen(true)}
             onOpenScoreEdit={(tieMatchId) => handleOpenResultEntry(tieMatchId, '')}
             refreshKey={refreshKey}
           />
@@ -305,11 +316,6 @@ export default function App() {
         onOpenLogin={() => setIsLoginModalOpen(true)}
       />
 
-      <GoogleSheetsSyncModal
-        isOpen={isGASModalOpen}
-        onClose={() => setIsGASModalOpen(false)}
-      />
-
       {/* Sleek Footer */}
       <footer className="h-14 bg-[#0E1424] border-t border-white/10 flex items-center justify-between px-4 sm:px-8 text-[11px] text-white/40">
         <div className="flex items-center gap-4 sm:gap-6">
@@ -318,7 +324,7 @@ export default function App() {
             <span>배드민턴 리그전 운영위원회</span>
           </div>
           <span className="hidden sm:inline text-white/20">|</span>
-          <span className="hidden sm:inline">Firebase DB & Google Sheets 연동</span>
+          <span className="hidden sm:inline">Firebase Firestore 실시간 동기화</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 bg-[#E2FF00] rounded-full animate-pulse shadow-[0_0_8px_#E2FF00]"></span>

@@ -4,30 +4,24 @@ import {
   Lock, 
   Users, 
   Calendar, 
-  FileSpreadsheet, 
   CheckCircle2, 
   RefreshCw, 
-  Trash2,
+  Trash2, 
   Check,
   UserCheck,
   Database,
-  ExternalLink,
-  Copy,
   AlertCircle,
   Plus,
-  Send,
   RotateCcw
 } from 'lucide-react';
 import { GradeLevel, TieMatch, UserProfile, isAdminRole } from '../types';
 import { StorageService, AssignedRoleRecord } from '../services/storageService';
 import { FirebaseService, RoleAssignment } from '../services/firebaseService';
-import { GASService } from '../services/gasService';
 import { LEAGUE_ROUNDS } from '../data/initialData';
 
 interface TeacherDashboardProps {
   currentUser: UserProfile | null;
   onOpenLogin: () => void;
-  onOpenGAS: () => void;
   onOpenScoreEdit?: (tieMatchId: string) => void;
   refreshKey?: number;
 }
@@ -35,7 +29,6 @@ interface TeacherDashboardProps {
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   currentUser,
   onOpenLogin,
-  onOpenGAS,
   onOpenScoreEdit,
   refreshKey
 }) => {
@@ -43,18 +36,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
 
-  // Sub-tabs: 3 core teacher requirements with persistent subtab memory
-  const [activeSubTab, setActiveSubTab] = useState<'ROLES_MGR' | 'MATCH_MGR' | 'GAS_SETTINGS'>(() => {
+  // Sub-tabs: 2 core teacher requirements with persistent subtab memory
+  const [activeSubTab, setActiveSubTab] = useState<'ROLES_MGR' | 'MATCH_MGR'>(() => {
     try {
       const saved = localStorage.getItem('sinan_teacher_subtab');
-      if (saved === 'ROLES_MGR' || saved === 'MATCH_MGR' || saved === 'GAS_SETTINGS') {
+      if (saved === 'ROLES_MGR' || saved === 'MATCH_MGR') {
         return saved;
       }
     } catch (e) {}
     return 'ROLES_MGR';
   });
 
-  const handleSelectSubTab = (tab: 'ROLES_MGR' | 'MATCH_MGR' | 'GAS_SETTINGS') => {
+  const handleSelectSubTab = (tab: 'ROLES_MGR' | 'MATCH_MGR') => {
     setActiveSubTab(tab);
     try {
       localStorage.setItem('sinan_teacher_subtab', tab);
@@ -76,12 +69,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [selectedRoundFilter, setSelectedRoundFilter] = useState<number>(0);
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<number>(0);
 
-  // Subtab 3: GAS Settings
-  const [gasUrl, setGasUrl] = useState<string>(() => StorageService.getGasUrl());
-  const [isSavingGas, setIsSavingGas] = useState<boolean>(false);
-  const [gasTestMsg, setGasTestMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [copiedCode, setCopiedCode] = useState<boolean>(false);
-
   // Keep isAuthenticated in sync if currentUser changes to admin
   useEffect(() => {
     if (isAdminRole(currentUser?.role)) {
@@ -94,15 +81,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     const handleMatchesUpdate = () => {
       setMatches(StorageService.getMatches());
     };
-    const handleGasUpdate = (e: any) => {
-      if (e?.detail) setGasUrl(e.detail);
-      else setGasUrl(StorageService.getGasUrl());
-    };
     window.addEventListener('matchesUpdated', handleMatchesUpdate);
-    window.addEventListener('gasUrlUpdated', handleGasUpdate);
     return () => {
       window.removeEventListener('matchesUpdated', handleMatchesUpdate);
-      window.removeEventListener('gasUrlUpdated', handleGasUpdate);
     };
   }, []);
 
@@ -123,7 +104,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Load initial data and connect real-time listener
   useEffect(() => {
     loadAssignedRoles();
-    loadGasUrl();
     loadMatchesFromFirestore();
 
     // Subscribe to Firestore assigned_roles changes in real-time
@@ -175,20 +155,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       console.warn('Error loading roles:', e);
       const localRoles = StorageService.getAssignedRoles();
       setAssignedRolesList(localRoles);
-    }
-  };
-
-  const loadGasUrl = async () => {
-    try {
-      const url = await FirebaseService.getGasUrl();
-      if (url) {
-        setGasUrl(url);
-      } else {
-        const localConfig = StorageService.getGASConfig();
-        setGasUrl(localConfig.webAppUrl || '');
-      }
-    } catch (e) {
-      console.warn('Error loading gas url:', e);
     }
   };
 
@@ -320,66 +286,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     });
   };
 
-  // Save GAS Webhook URL
-  const handleSaveGasUrl = async () => {
-    const trimmed = gasUrl.trim();
-    if (!trimmed.startsWith('http')) {
-      setGasTestMsg({ type: 'error', text: '올바른 https:// URL 형식이어야 합니다.' });
-      return;
-    }
-
-    setIsSavingGas(true);
-    setGasTestMsg(null);
-
-    try {
-      // 1. Save directly to local storage immediately
-      StorageService.saveGasUrl(trimmed);
-
-      // 2. Save to Firebase settings/gasUrl
-      const res = await FirebaseService.saveGasUrl(trimmed, currentUser?.name || '체육교사');
-
-      setGasTestMsg({
-        type: 'success',
-        text: res.message || 'Google Apps Script URL이 Firebase settings/gasUrl에 성공적으로 저장되었습니다!'
-      });
-    } catch (err: any) {
-      setGasTestMsg({
-        type: 'success',
-        text: 'Google Apps Script URL이 로컬에 저장되었습니다.'
-      });
-    } finally {
-      setIsSavingGas(false);
-    }
-  };
-
-  // Test GAS Connection
-  const handleTestGasConnection = async () => {
-    const trimmed = gasUrl.trim();
-    if (!trimmed) {
-      setGasTestMsg({ type: 'error', text: 'URL을 먼저 입력해주세요.' });
-      return;
-    }
-
-    // Auto-save URL so it's never lost
-    StorageService.saveGasUrl(trimmed);
-    FirebaseService.saveGasUrl(trimmed, currentUser?.name || '체육교사').catch(() => {});
-
-    setGasTestMsg(null);
-    const res = await GASService.testConnection(trimmed);
-    setGasTestMsg({
-      type: res.success ? 'success' : 'error',
-      text: res.message
-    });
-  };
-
-  // Copy Script Code
-  const handleCopyScript = () => {
-    const code = GASService.getScriptCode();
-    navigator.clipboard.writeText(code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
-
   // Reset Match Result
   const handleResetMatch = async (matchId: string) => {
     if (!confirm('이 경기의 결과를 초기화하시겠습니까? (세트 점수 및 승패가 초기 상태로 되돌아갑니다)')) return;
@@ -444,7 +350,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         <div>
           <h2 className="text-xl font-bold text-white tracking-tight">체육교사(Admin) 관리자 인증</h2>
           <p className="text-xs text-white/50 mt-1.5 leading-relaxed">
-            전체 경기 결과 관리, 구글 시트(GAS) 연동 URL 설정 및 <strong className="text-amber-400">반장/체육부장 권한 관리</strong>는 체육교사 인증이 필요합니다.
+            전체 경기 결과 관리 및 <strong className="text-amber-400">학생자치회/체육부장 권한 관리</strong>는 체육교사 인증이 필요합니다.
           </p>
         </div>
 
@@ -513,7 +419,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 체육교사 통합 운영 관리자 대시보드
               </h2>
               <p className="text-xs text-white/50 mt-1 max-w-2xl leading-relaxed">
-                학생자치회(council) 및 반장/체육부장(captain) 권한 부여, 전체 경기 결과 관리(수정/삭제/초기화), 그리고 구글 시트(GAS) Webhook URL 설정을 총괄합니다.
+                학생자치회(council) 및 반장/체육부장(captain) 권한 부여, 전체 경기 결과 관리(수정/삭제/초기화)를 총괄하며, 모든 데이터는 Firebase Firestore를 통해 실시간 동기화됩니다.
               </p>
             </div>
           </div>
@@ -554,18 +460,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         >
           <Calendar className="w-4 h-4" />
           <span>경기 결과 관리 (수정/삭제/초기화)</span>
-        </button>
-
-        <button
-          onClick={() => handleSelectSubTab('GAS_SETTINGS')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-            activeSubTab === 'GAS_SETTINGS'
-              ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.3)]'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-          <span>구글 시트(GAS) 연동 URL 설정</span>
         </button>
       </div>
 
@@ -721,7 +615,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   </>
                 ) : (
                   <>
-                    <Send className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5" />
                     <span>선택 학생에게 [{targetRole === 'council' ? '학생자치회' : '반장/체육부장'}] 권한 부여</span>
                   </>
                 )}
@@ -944,94 +838,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SUBTAB 3: GAS URL SETTINGS (구글 시트 연동 URL 설정) */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'GAS_SETTINGS' && (
-        <div className="space-y-6">
-          {gasTestMsg && (
-            <div
-              className={`p-4 rounded-xl border text-xs flex items-center gap-2.5 font-medium ${
-                gasTestMsg.type === 'success'
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-              }`}
-            >
-              {gasTestMsg.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              )}
-              <span>{gasTestMsg.text}</span>
-            </div>
-          )}
-
-          <div className="p-6 rounded-2xl bg-[#12192B] border border-white/10 space-y-6">
-            <div>
-              <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                Google Apps Script (GAS) Webhook URL 등록
-              </h3>
-              <p className="text-xs text-white/50 mt-1 leading-relaxed">
-                학생자치회 또는 교사가 경기 결과를 입력할 때, Firebase 저장과 동시에 구글 스프레드시트로 실시간 전송(POST)되는 엔드포인트 URL입니다. (Firebase의 <code className="text-amber-400 font-mono">settings/gasUrl</code> 문서에 저장됨)
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <label className="block text-xs font-mono text-white/70">
-                WEB APP URL (https://script.google.com/macros/s/.../exec)
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  value={gasUrl}
-                  onChange={(e) => setGasUrl(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveGasUrl(); }}
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  className="flex-1 px-4 py-3 rounded-xl bg-[#0A0F1D] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400"
-                />
-
-                <button
-                  type="button"
-                  onClick={handleTestGasConnection}
-                  className="px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold border border-white/10 transition"
-                >
-                  연결 테스트 (PING)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveGasUrl}
-                  disabled={isSavingGas}
-                  className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition shadow-[0_0_12px_rgba(245,158,11,0.3)] disabled:opacity-50"
-                >
-                  {isSavingGas ? '저장 중...' : 'URL 저장'}
-                </button>
-              </div>
-            </div>
-
-            {/* Script Code Helper */}
-            <div className="p-4 rounded-xl bg-[#0A0F1D] border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white font-mono">
-                  구글 스프레드시트용 Apps Script 소스코드 (Code.gs)
-                </span>
-                <button
-                  onClick={handleCopyScript}
-                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-white border border-white/10 flex items-center gap-1.5 transition"
-                >
-                  {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode ? '복사 완료!' : '스크립트 복사'}</span>
-                </button>
-              </div>
-              <p className="text-[11px] text-white/40 leading-relaxed">
-                구글 시트의 [확장 프로그램] → [Apps Script]에 붙여넣고 [새 배포: 웹 앱(액세스: 모든 사용자)]으로 배포한 URL을 위에 등록하십시오.
-              </p>
-            </div>
           </div>
         </div>
       )}

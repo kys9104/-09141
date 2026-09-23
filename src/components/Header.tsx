@@ -4,7 +4,6 @@ import {
   Calendar, 
   BarChart3, 
   ShieldCheck, 
-  FileSpreadsheet, 
   LogOut, 
   LogIn, 
   Zap,
@@ -27,7 +26,6 @@ interface HeaderProps {
   setActiveTab: (tab: string) => void;
   onOpenLogin: () => void;
   onLogout: () => void;
-  onOpenGoogleSheets: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,8 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   onOpenLogin,
-  onLogout,
-  onOpenGoogleSheets
+  onLogout
 }) => {
   const isAdmin = isAdminRole(currentUser?.role);
   const isCaptain = isCaptainRole(currentUser?.role);
@@ -112,17 +109,6 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-3">
-            {/* Google Sheets Sync Quick Button */}
-            <button
-              onClick={onOpenGoogleSheets}
-              id="google-sheets-sync-btn"
-              title="Google 스프레드시트 실시간 연동"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)]"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">구글 시트 연동</span>
-            </button>
-
             {currentUser ? (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 bg-white/5 rounded-full px-3.5 py-1.5 border border-white/10">

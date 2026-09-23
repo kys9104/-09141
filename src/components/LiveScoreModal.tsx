@@ -14,8 +14,6 @@ import {
 import confetti from 'canvas-confetti';
 import { SubMatch, TieMatch, SetScore, MatchCategory, UserProfile, isCouncilRole, isCaptainRole, isAdminRole } from '../types';
 import { StorageService } from '../services/storageService';
-import { GASService } from '../services/gasService';
-import { GoogleSheetsService } from '../services/googleSheetsService';
 import { FirebaseService } from '../services/firebaseService';
 
 interface LiveScoreModalProps {
@@ -179,15 +177,8 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
       ? `${currentUser.name} (${isCouncilRole(currentUser.role) ? '학생자치회' : isCaptainRole(currentUser.role) ? '체육부장/반장' : '체육교사'})`
       : '학생자치회/체육부장/교사';
 
-    // Auto-sync to Firebase, Google Sheets REST API & GAS
+    // Auto-sync to Firebase Firestore in real-time
     await FirebaseService.saveMatch(t, submitterName).catch(console.error);
-
-    if (isMatchDone) {
-      GoogleSheetsService.appendMatchResult(t, submitterName).catch(err => {
-        console.warn('Google Sheets sync notice:', err.message);
-      });
-    }
-    GASService.sendToGAS('MATCH_RESULT', t).catch(console.error);
 
     if (isMatchDone) {
       confetti({

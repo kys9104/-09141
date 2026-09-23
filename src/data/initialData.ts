@@ -4,7 +4,6 @@ import {
   Player, 
   TieMatch, 
   SubMatch, 
-  GASConfig,
   GradeLevel
 } from '../types';
 
@@ -522,9 +521,3 @@ export const INITIAL_TIE_MATCHES: TieMatch[] = [
     subMatches: createSubMatches('SM-R6-M2', true)
   }
 ];
-
-export const INITIAL_GAS_CONFIG: GASConfig = {
-  webAppUrl: '',
-  autoSync: true,
-  status: 'DISCONNECTED'
-};

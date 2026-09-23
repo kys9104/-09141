@@ -25,7 +25,6 @@ import {
 import { CATEGORIES, LEAGUE_ROUNDS } from '../data/initialData';
 import { StorageService } from '../services/storageService';
 import { FirebaseService } from '../services/firebaseService';
-import { GASService } from '../services/gasService';
 
 interface RosterSubmissionViewProps {
   currentUser: UserProfile | null;
@@ -308,9 +307,6 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
 
         // Save match to Firestore
         await FirebaseService.saveMatch(tie, submitterInfo);
-
-        // Async sync with GAS Webhook
-        GASService.sendToGAS('MATCH_RESULT', tie).catch(console.error);
       }
 
       setStatusMessage({
@@ -359,14 +355,14 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
                   ROSTER ACCESS
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  FIREBASE ROSTERS
+                  OFFICIAL ROSTER
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                 반장 / 체육부장 / 학생자치회 출전명단 작성
               </h2>
               <p className="text-xs text-white/50 mt-1 max-w-2xl leading-relaxed">
-                각 반의 반장·체육부장 및 학생자치회가 라운드별 대진에 출전할 5개 종목 선수를 배정하여 클라우드 DB(rosters)에 직접 제출·저장합니다.
+                각 반의 반장·체육부장 및 학생자치회가 라운드별 대진에 출전할 5개 종목 선수를 배정하여 직접 제출·저장합니다.
               </p>
             </div>
           </div>
@@ -496,7 +492,6 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
             <ul className="text-xs text-white/60 space-y-2 list-disc list-inside leading-relaxed">
               <li>1인당 최대 <strong className="text-white">2개 종목</strong>까지 중복 출전이 허용됩니다.</li>
               <li>모든 종목은 <strong className="text-white">단판 15점 랠리포인트제</strong>로 진행됩니다.</li>
-              <li>제출 완료 시 Firebase DB의 <code className="text-[#E2FF00] font-mono">rosters</code> 컬렉션에 영구 기록됩니다.</li>
             </ul>
           </div>
         </div>
