@@ -1,13 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Trophy, 
-  Activity,
-  Target,
-  BarChart3
+  Activity, 
+  Target, 
+  BarChart3 
 } from 'lucide-react';
 import { StorageService } from '../services/storageService';
 
 export const StatsMvpView: React.FC = () => {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => setTick(t => t + 1);
+    window.addEventListener('matchesUpdated', handleUpdate);
+    return () => window.removeEventListener('matchesUpdated', handleUpdate);
+  }, []);
+
   const matches = StorageService.getMatches();
   const standings = StorageService.calculateStandings('ALL');
 

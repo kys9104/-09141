@@ -20,15 +20,18 @@ import { INITIAL_TIE_MATCHES } from '../data/initialData';
 import { StorageService } from './storageService';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 // Firestore connection tester
 export async function testFirestoreConnection(): Promise<boolean> {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log('Firestore connected successfully to', firebaseConfig.firestoreDatabaseId);
     return true;
   } catch (error) {
-    console.log('Firestore connection verified');
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration or network.');
+    }
     return true;
   }
 }
@@ -569,15 +572,30 @@ export class FirebaseService {
     try {
       await this.ensureAuth();
       const existing = await this.getMatches();
-      if (existing && existing.length >= INITIAL_TIE_MATCHES.length) {
-        return existing;
-      }
+      const localMatches = StorageService.getMatches();
 
-      // Seed any missing matches
+      // Check if local has completed matches or scores that are not yet in existing cloud matches
+      let hasLocalScoresToSync = false;
       const mergedList = INITIAL_TIE_MATCHES.map(baseMatch => {
         const found = existing.find(e => e.id === baseMatch.id);
-        return found || baseMatch;
+        const local = localMatches.find(l => l.id === baseMatch.id);
+
+        const foundHasScore = found && (found.status === 'COMPLETED' || found.subMatches?.some(s => s.status === 'COMPLETED' || (s.sets && s.sets[0]?.scoreA > 0) || (s.sets && s.sets[0]?.scoreB > 0)));
+        const localHasScore = local && (local.status === 'COMPLETED' || local.subMatches?.some(s => s.status === 'COMPLETED' || (s.sets && s.sets[0]?.scoreA > 0) || (s.sets && s.sets[0]?.scoreB > 0)));
+
+        if (foundHasScore) {
+          return found;
+        }
+        if (localHasScore) {
+          hasLocalScoresToSync = true;
+          return local;
+        }
+        return found || local || baseMatch;
       });
+
+      if (existing && existing.length >= INITIAL_TIE_MATCHES.length && !hasLocalScoresToSync) {
+        return existing;
+      }
 
       // Save all in parallel
       const promises = mergedList.map(async (m) => {
@@ -585,7 +603,7 @@ export class FirebaseService {
         const sanitized = this.sanitizeForFirestore({
           ...m,
           updatedAt: new Date().toISOString(),
-          updatedBy: '시스템(초기일정동기화)'
+          updatedBy: hasLocalScoresToSync ? '시스템(로컬결과클라우드반영)' : '시스템(초기일정동기화)'
         });
         return setDoc(matchRef, sanitized, { merge: true });
       });

@@ -34,6 +34,7 @@ import { LEAGUE_ROUNDS, CATEGORIES } from '../data/initialData';
 import { StorageService } from '../services/storageService';
 import { FirebaseService } from '../services/firebaseService';
 import { MatchResultDetailModal } from './MatchResultDetailModal';
+import { MatchScheduleEditModal } from './MatchScheduleEditModal';
 
 interface ScheduleRoundViewProps {
   currentUser: UserProfile | null;
@@ -77,6 +78,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
     subMatchId?: string;
     title: string;
   } | null>(null);
+  const [scheduleEditTie, setScheduleEditTie] = useState<TieMatch | null>(null);
 
   const [liveKey, setLiveKey] = useState(0);
   useEffect(() => {
@@ -359,6 +361,17 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                       <span>출전명단 작성</span>
                     </button>
 
+                    {(isTeacher || isStudentCouncil) && (
+                      <button
+                        onClick={() => setScheduleEditTie(tie)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 transition flex items-center gap-1.5"
+                        title="경기 일자, 시간, 코트 및 심판 배정 수정 (Firestore 실시간 반영)"
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-[#E2FF00]" />
+                        <span>일정·코트 배정</span>
+                      </button>
+                    )}
+
                     {/* Teacher-only: Reset entire tie match results */}
                     {isTeacher && (tie.status === 'COMPLETED' || tie.subMatches.some(s => s.status === 'COMPLETED')) && (
                       <button
@@ -633,6 +646,18 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
         onClose={() => setSelectedDetailMatch(null)}
         onOpenEdit={(tieId, subMatchId) => onOpenResultEntryModal(tieId, subMatchId)}
         onOpenLiveScore={(tieId, subMatchId) => onOpenLiveScoreModal(tieId, subMatchId)}
+      />
+
+      {/* Match Schedule & Court Edit Modal (Teacher & Council) */}
+      <MatchScheduleEditModal
+        isOpen={Boolean(scheduleEditTie)}
+        tieMatch={scheduleEditTie}
+        currentUser={currentUser}
+        onClose={() => setScheduleEditTie(null)}
+        onSaved={() => {
+          setLiveKey(k => k + 1);
+          if (onResultDeleted) onResultDeleted();
+        }}
       />
 
     </div>

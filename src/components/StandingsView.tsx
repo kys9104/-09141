@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Trophy, 
   Medal, 
@@ -25,6 +25,18 @@ interface StandingsViewProps {
 export const StandingsView: React.FC<StandingsViewProps> = ({
   onOpenSchedule
 }) => {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => setTick(t => t + 1);
+    window.addEventListener('matchesUpdated', handleUpdate);
+    window.addEventListener('rostersUpdated', handleUpdate);
+    return () => {
+      window.removeEventListener('matchesUpdated', handleUpdate);
+      window.removeEventListener('rostersUpdated', handleUpdate);
+    };
+  }, []);
+
   const standings = StorageService.calculateStandings('ALL');
   const allMatches = StorageService.getMatches();
   const recentCompletedMatches = StorageService.getRecentCompletedMatches();
