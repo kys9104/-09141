@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
+  EyeOff,
   Users
 } from 'lucide-react';
 import { GradeLevel, UserProfile, UserRole } from '../types';
@@ -34,6 +35,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [role, setRole] = useState<UserRole>('captain');
   const [teacherPassword, setTeacherPassword] = useState<string>('');
   const [studentCouncilPassword, setStudentCouncilPassword] = useState<string>('');
+  const [showCouncilPassword, setShowCouncilPassword] = useState<boolean>(false);
+  const [showTeacherPassword, setShowTeacherPassword] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [assignedRoles, setAssignedRoles] = useState<AssignedRoleRecord[]>(() => StorageService.getAssignedRoles());
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
@@ -475,14 +478,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   <Lock className="w-3.5 h-3.5" /> 학생자치회 비밀번호 입력
                 </label>
               </div>
-              <input
-                type="password"
-                value={studentCouncilPassword}
-                onChange={(e) => setStudentCouncilPassword(e.target.value)}
-                placeholder="학생자치회 비밀번호 (8650)"
-                autoComplete="current-password"
-                className="w-full px-3.5 py-2.5 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-purple-400 text-sm font-mono tracking-widest"
-              />
+              <div className="relative">
+                <input
+                  type={showCouncilPassword ? "text" : "password"}
+                  value={studentCouncilPassword}
+                  onChange={(e) => setStudentCouncilPassword(e.target.value)}
+                  placeholder="학생자치회 비밀번호 (••••)"
+                  autoComplete="current-password"
+                  className="w-full pl-3.5 pr-10 py-2.5 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-purple-400 text-sm font-mono tracking-widest"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCouncilPassword(!showCouncilPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition"
+                  title={showCouncilPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                >
+                  {showCouncilPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           )}
 
@@ -494,13 +507,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   <Lock className="w-3.5 h-3.5" /> 체육교사 관리자 비밀번호
                 </label>
               </div>
-              <input
-                type="password"
-                value={teacherPassword}
-                onChange={(e) => setTeacherPassword(e.target.value)}
-                placeholder="체육교사 비밀번호 입력"
-                className="w-full px-3.5 py-2.5 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-[#E2FF00] text-sm font-mono tracking-widest"
-              />
+              <div className="relative">
+                <input
+                  type={showTeacherPassword ? "text" : "password"}
+                  value={teacherPassword}
+                  onChange={(e) => setTeacherPassword(e.target.value)}
+                  placeholder="체육교사 비밀번호 (••••)"
+                  autoComplete="current-password"
+                  className="w-full pl-3.5 pr-10 py-2.5 rounded-lg bg-[#12192B] border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-[#E2FF00] text-sm font-mono tracking-widest"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowTeacherPassword(!showTeacherPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition"
+                  title={showTeacherPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                >
+                  {showTeacherPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           )}
 

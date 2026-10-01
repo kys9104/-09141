@@ -10,13 +10,20 @@ import {
   onSnapshot, 
   query, 
   where,
-  getDocFromServer
+  getDocFromServer,
+  disableNetwork,
+  setLogLevel
 } from 'firebase/firestore';
 import { auth, signInAnonymously } from './googleAuthService';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { UserProfile, TieMatch, LineupEntry, GradeLevel, MatchCategory } from '../types';
 import { INITIAL_TIE_MATCHES } from '../data/initialData';
 import { StorageService } from './storageService';
+
+// Silence internal Firestore SDK console logs to prevent quota noise
+try {
+  setLogLevel('silent');
+} catch {}
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -35,7 +42,8 @@ export function isQuotaError(err: any): boolean {
     str.includes('backoff') ||
     str.includes('exceeded') ||
     str.includes('write units') ||
-    str.includes('free tier database')
+    str.includes('free tier database') ||
+    str.includes('overloading the backend')
   );
 }
 
@@ -44,6 +52,10 @@ export function markQuotaExhausted(): void {
     isCloudQuotaExhausted = true;
     try {
       localStorage.setItem('sinan_firestore_quota_exhausted', String(Date.now()));
+    } catch {}
+    // Immediately disable Firestore network to shut off retry streams and backoff loops
+    try {
+      disableNetwork(db).catch(() => {});
     } catch {}
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('firestoreQuotaExhausted'));
@@ -60,6 +72,9 @@ export function checkIsQuotaExhausted(): boolean {
       // Suppress writes for 12 hours once quota limit is hit, then test gently
       if (elapsed < 12 * 60 * 60 * 1000) {
         isCloudQuotaExhausted = true;
+        try {
+          disableNetwork(db).catch(() => {});
+        } catch {}
         return true;
       } else {
         localStorage.removeItem('sinan_firestore_quota_exhausted');
@@ -70,14 +85,48 @@ export function checkIsQuotaExhausted(): boolean {
 }
 
 // Initial check on load
-checkIsQuotaExhausted();
+if (checkIsQuotaExhausted()) {
+  try {
+    disableNetwork(db).catch(() => {});
+  } catch {}
+}
 
-// Catch any unhandled quota promise rejections from Firestore's internal streams
+// Global console and unhandled rejection interceptors to prevent quota errors from leaking
 if (typeof window !== 'undefined') {
+  const origError = console.error;
+  const origWarn = console.warn;
+
+  console.error = function (...args: any[]) {
+    const text = args.map(a => String(a?.message || a?.code || a?.name || a?.stack || a)).join(' ');
+    if (isQuotaError(text)) {
+      markQuotaExhausted();
+      return;
+    }
+    origError.apply(console, args);
+  };
+
+  console.warn = function (...args: any[]) {
+    const text = args.map(a => String(a?.message || a?.code || a?.name || a?.stack || a)).join(' ');
+    if (isQuotaError(text)) {
+      markQuotaExhausted();
+      return;
+    }
+    origWarn.apply(console, args);
+  };
+
   window.addEventListener('unhandledrejection', (event) => {
     if (isQuotaError(event.reason)) {
       markQuotaExhausted();
       event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  });
+
+  window.addEventListener('error', (event) => {
+    if (isQuotaError(event.error || event.message)) {
+      markQuotaExhausted();
+      event.preventDefault();
+      event.stopImmediatePropagation();
     }
   });
 }
