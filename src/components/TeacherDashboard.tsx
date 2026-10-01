@@ -322,6 +322,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Full Sync Matches to Firebase
   const handleSyncAllMatchesToFirebase = async () => {
+    if (FirebaseService.isQuotaExhausted()) {
+      alert('안내: 현재 Firebase 클라우드의 무료 일일 쓰기 한도(Quota)가 초과된 상태입니다.\n데이터는 로컬에 안전하게 저장 및 유지되고 있으며, 할당량 리셋 후 클라우드 동기화가 진행됩니다.');
+      return;
+    }
     try {
       const currentList = StorageService.getMatches();
       for (const m of currentList) {

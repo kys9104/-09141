@@ -131,7 +131,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           role: 'admin'
         };
         StorageService.saveCurrentUser(teacherProfile);
-        await FirebaseService.saveUserProfile(teacherProfile);
+        FirebaseService.saveUserProfile(teacherProfile).catch(() => {});
         onLoginSuccess(teacherProfile);
         onClose();
         return;
@@ -149,7 +149,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           role: 'student'
         };
         StorageService.saveCurrentUser(studentProfile);
-        await FirebaseService.saveUserProfile(studentProfile);
         onLoginSuccess(studentProfile);
         onClose();
         return;
@@ -192,7 +191,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         // Update local and firestore profile (does NOT overwrite other classes' reps)
         StorageService.setSportsRepresentative(grade, classNum, name.trim());
         StorageService.saveCurrentUser(captainProfile);
-        await FirebaseService.saveUserProfile(captainProfile);
+        FirebaseService.saveUserProfile(captainProfile).catch(() => {});
         onLoginSuccess(captainProfile);
         onClose();
         return;
@@ -237,7 +236,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           role: 'council'
         };
         StorageService.saveCurrentUser(councilProfile);
-        await FirebaseService.saveUserProfile(councilProfile);
+        FirebaseService.saveUserProfile(councilProfile).catch(() => {});
         onLoginSuccess(councilProfile);
         onClose();
         return;
