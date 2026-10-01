@@ -172,9 +172,24 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
     return `${s.studentNum}번 ${s.name}`;
   };
 
+  const isTeacher = isAdminRole(currentUser?.role);
+  const isCouncil = isCouncilRole(currentUser?.role);
+  const isClassCaptain = isCaptainRole(currentUser?.role) && 
+    Number(currentUser?.grade) === Number(selectedGrade) && 
+    Number(currentUser?.classNum) === Number(selectedClass);
+  const canEdit = isTeacher || isCouncil || isClassCaptain;
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
+
+    if (!canEdit) {
+      setMessage({
+        type: 'error',
+        text: `출전명단 제출 권한이 없습니다. 체육교사가 지정한 ${selectedGrade}학년 ${selectedClass}반 반장/체육부장 또는 학생자치회/체육교사만 저장할 수 있습니다.`
+      });
+      return;
+    }
 
     setIsSaving(true);
 
@@ -370,6 +385,15 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
             </span>
             <span className="text-[11px] text-white/40">종목별 성별 규정에 따라 선수가 자동 분류됩니다.</span>
           </div>
+
+          {!canEdit && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>조회 전용 모드 (작성 불가):</strong> 체육교사가 지정한 {selectedGrade}학년 {selectedClass}반 반장/체육부장 또는 학생자치회/체육교사만 명단을 작성하고 확정할 수 있습니다.
+              </span>
+            </div>
+          )}
 
           {/* 5 Categories Inputs */}
           <div className="space-y-4">
@@ -592,11 +616,23 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSaving}
-              className="w-2/3 py-3 rounded-xl text-xs sm:text-sm font-bold text-black bg-[#E2FF00] hover:opacity-90 disabled:opacity-50 shadow-[0_0_12px_rgba(226,255,0,0.3)] transition flex items-center justify-center gap-2"
+              disabled={isSaving || !canEdit}
+              className={`w-2/3 py-3 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 ${
+                !canEdit
+                  ? 'bg-white/5 border border-white/10 text-white/40 cursor-not-allowed'
+                  : 'text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)]'
+              }`}
             >
-              <CheckCircle2 className="w-4 h-4 text-black" />
-              <span>{isSaving ? '저장 중...' : `${selectedGrade}학년 ${selectedClass}반 명단 확정 저장`}</span>
+              {isSaving ? (
+                <span>저장 중...</span>
+              ) : !canEdit ? (
+                <span>작성 권한 없음 (조회 전용)</span>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-black" />
+                  <span>{selectedGrade}학년 ${selectedClass}반 명단 확정 저장</span>
+                </>
+              )}
             </button>
           </div>
         </form>

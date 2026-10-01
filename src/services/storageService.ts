@@ -285,7 +285,7 @@ export class StorageService {
       const match = roles.find(r => 
         Number(r.grade) === Number(grade) && 
         Number(r.classNum) === Number(classNum) && 
-        Number(r.studentNum) === Number(studentNum) &&
+        Number(r.studentNum) === Number(studentNum) && 
         r.role === preferredRole
       );
       if (match) return match;
@@ -295,6 +295,24 @@ export class StorageService {
       Number(r.classNum) === Number(classNum) && 
       Number(r.studentNum) === Number(studentNum)
     );
+  }
+
+  static isDesignatedRole(grade: GradeLevel, classNum: number, studentNum: number, targetRole: 'captain' | 'council'): boolean {
+    const roles = this.getAssignedRoles();
+    return roles.some(r => 
+      Number(r.grade) === Number(grade) && 
+      Number(r.classNum) === Number(classNum) && 
+      Number(r.studentNum) === Number(studentNum) && 
+      r.role === targetRole
+    );
+  }
+
+  static getDesignatedCaptains(): AssignedRoleRecord[] {
+    return this.getAssignedRoles().filter(r => r.role === 'captain');
+  }
+
+  static getDesignatedCouncil(): AssignedRoleRecord[] {
+    return this.getAssignedRoles().filter(r => r.role === 'council');
   }
 
   // ==========================================

@@ -267,6 +267,7 @@ export default function App() {
           <RosterSubmissionView
             currentUser={currentUser}
             onRosterUpdated={triggerRefresh}
+            onOpenLogin={() => setIsLoginModalOpen(true)}
           />
         )}
 

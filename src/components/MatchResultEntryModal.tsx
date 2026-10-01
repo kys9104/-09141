@@ -111,7 +111,8 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
   };
 
   const isTeacher = isAdminRole(currentUser?.role);
-  const canSubmitResult = isCouncilRole(currentUser?.role) || isCaptainRole(currentUser?.role) || isTeacher;
+  const isCouncil = isCouncilRole(currentUser?.role);
+  const canSubmitResult = isTeacher || isCouncil;
 
   const handleDeleteResult = () => {
     if (!isTeacher || !tieMatchId || !subMatchId) return;
@@ -126,7 +127,7 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
     e.preventDefault();
 
     if (!canSubmitResult) {
-      alert('경기 결과 입력 권한이 없습니다. (학생자치회, 체육부장/반장 및 체육교사만 가능)');
+      alert('경기 결과 입력 권한이 없습니다. 체육교사가 지정한 학생자치회 및 체육교사만 경기 결과를 입력할 수 있습니다.');
       return;
     }
 
@@ -383,6 +384,15 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
             </div>
           )}
 
+          {!canSubmitResult && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>결과 기록 제한 (조회 전용):</strong> 체육교사가 지정한 학생자치회 및 체육교사만 경기 결과를 입력하고 저장할 수 있습니다.
+              </span>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="pt-2 flex items-center gap-3">
             <button
@@ -390,14 +400,19 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
               onClick={onClose}
               className="w-1/3 py-3 rounded-xl text-xs font-bold text-white/70 bg-white/5 hover:bg-white/10 transition"
             >
-              취소
+              닫기
             </button>
             <button
               type="submit"
-              className="w-2/3 py-3 rounded-xl text-xs sm:text-sm font-bold text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)] transition flex items-center justify-center gap-2"
+              disabled={!canSubmitResult}
+              className={`w-2/3 py-3 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 ${
+                !canSubmitResult
+                  ? 'bg-white/5 border border-white/10 text-white/40 cursor-not-allowed'
+                  : 'text-black bg-[#E2FF00] hover:opacity-90 shadow-[0_0_12px_rgba(226,255,0,0.3)]'
+              }`}
             >
-              <CheckCircle2 className="w-4 h-4 text-black" />
-              <span>경기 결과 확정 및 저장</span>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{canSubmitResult ? '경기 결과 확정 및 저장' : '결과 입력 권한 없음'}</span>
             </button>
           </div>
         </form>

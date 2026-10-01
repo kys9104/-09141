@@ -69,7 +69,7 @@ export const LiveScoreModal: React.FC<LiveScoreModalProps> = ({
 
   const teamAGrade = tie.teamAGrade || tie.grade || 1;
   const teamBGrade = tie.teamBGrade || tie.grade || 1;
-  const canEditScore = isCouncilRole(currentUser?.role) || isCaptainRole(currentUser?.role) || isAdminRole(currentUser?.role);
+  const canEditScore = isCouncilRole(currentUser?.role) || isAdminRole(currentUser?.role);
 
   const addPointA = () => {
     if (!canEditScore) return;

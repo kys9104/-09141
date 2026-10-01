@@ -111,7 +111,7 @@ export class FirebaseService {
     try {
       const docId = `${grade}-${classNum}-${studentNum}`;
       
-      // 1. Check assigned_roles collection first
+      // 1. Check assigned_roles collection by direct docId
       const roleRef = doc(db, 'assigned_roles', docId);
       const roleSnap = await getDoc(roleRef);
       if (roleSnap.exists()) {
@@ -120,7 +120,29 @@ export class FirebaseService {
         if (data.role === 'captain' || data.role === 'SPORTS_REP') return 'captain';
       }
 
-      // 2. Fallback to users collection
+      // Check with -captain suffix
+      const roleSnapCap = await getDoc(doc(db, 'assigned_roles', `${docId}-captain`));
+      if (roleSnapCap.exists()) return 'captain';
+
+      // Check with -council suffix
+      const roleSnapCoun = await getDoc(doc(db, 'assigned_roles', `${docId}-council`));
+      if (roleSnapCoun.exists()) return 'council';
+
+      // 2. Query assigned_roles collection by fields
+      const q = query(
+        collection(db, 'assigned_roles'),
+        where('grade', '==', Number(grade)),
+        where('classNum', '==', Number(classNum)),
+        where('studentNum', '==', Number(studentNum))
+      );
+      const querySnap = await getDocs(q);
+      if (!querySnap.empty) {
+        const data = querySnap.docs[0].data();
+        if (data.role === 'council' || data.role === 'STUDENT_COUNCIL') return 'council';
+        if (data.role === 'captain' || data.role === 'SPORTS_REP') return 'captain';
+      }
+
+      // 3. Fallback to users collection
       const userRef = doc(db, 'users', docId);
       const snap = await getDoc(userRef);
       if (snap.exists()) {
@@ -132,6 +154,15 @@ export class FirebaseService {
       console.warn('Firebase checkAssignedRole note:', e);
     }
     return 'student';
+  }
+
+  static async isDesignatedRoleAsync(grade: GradeLevel, classNum: number, studentNum: number, role: 'captain' | 'council'): Promise<boolean> {
+    try {
+      const assigned = await this.checkAssignedRole(grade, classNum, studentNum);
+      return assigned === role;
+    } catch {
+      return false;
+    }
   }
 
   /**

@@ -9,7 +9,8 @@ import {
   Users,
   ShieldCheck,
   RefreshCw,
-  Database
+  Database,
+  Lock
 } from 'lucide-react';
 import { 
   GradeLevel, 
@@ -28,11 +29,13 @@ import { FirebaseService } from '../services/firebaseService';
 interface RosterSubmissionViewProps {
   currentUser: UserProfile | null;
   onRosterUpdated?: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
   currentUser,
-  onRosterUpdated
+  onRosterUpdated,
+  onOpenLogin
 }) => {
   // If user is a captain of a specific class, default to their grade and class
   const initialGrade: GradeLevel = currentUser && currentUser.grade ? currentUser.grade : 1;
@@ -165,17 +168,35 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
     };
   };
 
+  const isTeacher = isAdminRole(currentUser?.role);
+  const isCouncil = isCouncilRole(currentUser?.role);
+  const isClassCaptain = isCaptainRole(currentUser?.role) && 
+    Number(currentUser?.grade) === Number(selectedGrade) && 
+    Number(currentUser?.classNum) === Number(selectedClass);
+  const canEdit = isTeacher || isCouncil || isClassCaptain;
+
   const handleSubmitRoster = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMessage(null);
 
-    // Permission check: Captain (반장/체육부장), Council (학생자치회), Admin (체육교사) 모두 출전명단 작성 및 저장 가능
-    const canSubmit = isCaptainRole(currentUser?.role) || isCouncilRole(currentUser?.role) || isAdminRole(currentUser?.role);
-    if (!canSubmit) {
-      setStatusMessage({
-        type: 'error',
-        text: '출전명단 제출 권한이 없습니다. 해당 반의 반장/체육부장(captain), 학생자치회(council) 또는 체육교사(Admin)만 가능합니다.'
-      });
+    // Permission check: 체육교사(Admin), 학생자치회(Council), 또는 체육교사가 지정한 해당 학급 반장/체육부장(Captain)만 가능
+    if (!canEdit) {
+      if (!currentUser) {
+        setStatusMessage({
+          type: 'error',
+          text: `출전명단 작성 권한이 없습니다. 체육교사가 지정한 ${selectedGrade}학년 ${selectedClass}반 반장/체육부장 또는 학생자치회/교사로 로그인해주세요.`
+        });
+      } else if (currentUser.role === 'student') {
+        setStatusMessage({
+          type: 'error',
+          text: '일반 학생은 출전명단을 작성하거나 제출할 수 없습니다. (체육교사가 지정한 운영진만 가능)'
+        });
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: `권한 제한: ${currentUser.name} 학생은 ${currentUser.grade}학년 ${currentUser.classNum}반 대표입니다. 다른 학급(${selectedGrade}학년 ${selectedClass}반)의 명단은 수정할 수 없습니다.`
+        });
+      }
       return;
     }
 
@@ -332,9 +353,8 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
   };
 
   const isCaptain = isCaptainRole(currentUser?.role);
-  const isCouncil = isCouncilRole(currentUser?.role);
   const isAdmin = isAdminRole(currentUser?.role);
-  const hasEditAccess = isCaptain || isCouncil || isAdmin;
+  const hasEditAccess = canEdit;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -370,13 +390,41 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
             <div className="flex flex-col text-right">
               <span className="text-white/40 font-mono text-[10px]">로그인 권한</span>
               <span className="font-bold text-white">
-                {isAdmin ? '체육교사 (Admin)' : isCouncil ? '학생자치회 (Council)' : isCaptain ? '반장/체육부장 (Captain)' : '일반 학생 (조회만 가능)'}
+                {isAdmin ? '체육교사 (Admin)' : isCouncil ? '학생자치회 (Council)' : (isCaptain && isClassCaptain) ? '반장/체육부장 (작성 가능)' : isCaptain ? '타 학급 반장 (조회 전용)' : '일반 학생 (조회만 가능)'}
               </span>
             </div>
             <div className={`w-3 h-3 rounded-full ${hasEditAccess ? 'bg-[#E2FF00]' : 'bg-white/30'} shadow-[0_0_8px_currentColor]`}></div>
           </div>
         </div>
       </div>
+
+      {/* Permission Restriction Notice Card */}
+      {!canEdit && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <span className="font-bold text-amber-300">출전명단 조회 전용 모드 (작성 권한 제한):</span>{' '}
+              {!currentUser ? (
+                <span>로그인되어 있지 않습니다. 체육교사가 지정한 {selectedGrade}학년 {selectedClass}반 반장/체육부장, 학생자치회 또는 체육교사만 명단을 작성·저장할 수 있습니다.</span>
+              ) : currentUser.role === 'student' ? (
+                <span>일반 학생은 출전명단을 조회만 할 수 있습니다. 체육교사가 지정한 반장/체육부장 또는 학생자치회만 작성 가능합니다.</span>
+              ) : (
+                <span>{currentUser.grade}학년 {currentUser.classNum}반 반장/체육부장으로 로그인되어 있어, 타 학급({selectedGrade}학년 {selectedClass}반)의 명단은 수정할 수 없으며 조회만 가능합니다.</span>
+              )}
+            </div>
+          </div>
+          {onOpenLogin && !currentUser && (
+            <button
+              type="button"
+              onClick={onOpenLogin}
+              className="px-3.5 py-1.5 rounded-lg bg-[#E2FF00] hover:bg-[#c9e600] text-black font-bold text-xs shrink-0 self-start sm:self-auto transition shadow-sm"
+            >
+              운영진 로그인
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Status Notice */}
       {statusMessage && (
@@ -518,8 +566,13 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
               </div>
               <select
                 value={msPlayer}
+                disabled={!canEdit}
                 onChange={(e) => setMsPlayer(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white text-xs focus:outline-none focus:border-[#E2FF00]"
+                className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:outline-none transition ${
+                  !canEdit 
+                    ? 'bg-[#0d1424] border-white/5 text-white/40 cursor-not-allowed' 
+                    : 'bg-[#12192B] border-white/10 text-white focus:border-[#E2FF00]'
+                }`}
               >
                 <option value="">선수 선택 (남학생)</option>
                 {classStudents.filter(s => s.gender === 'M').map(s => (
@@ -540,8 +593,13 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
               </div>
               <select
                 value={wsPlayer}
+                disabled={!canEdit}
                 onChange={(e) => setWsPlayer(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white text-xs focus:outline-none focus:border-[#E2FF00]"
+                className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:outline-none transition ${
+                  !canEdit 
+                    ? 'bg-[#0d1424] border-white/5 text-white/40 cursor-not-allowed' 
+                    : 'bg-[#12192B] border-white/10 text-white focus:border-[#E2FF00]'
+                }`}
               >
                 <option value="">선수 선택 (여학생)</option>
                 {classStudents.filter(s => s.gender === 'F').map(s => (
@@ -563,8 +621,13 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select
                   value={mdPlayer1}
+                  disabled={!canEdit}
                   onChange={(e) => setMdPlayer1(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white text-xs focus:outline-none focus:border-[#E2FF00]"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:outline-none transition ${
+                    !canEdit 
+                      ? 'bg-[#0d1424] border-white/5 text-white/40 cursor-not-allowed' 
+                      : 'bg-[#12192B] border-white/10 text-white focus:border-[#E2FF00]'
+                  }`}
                 >
                   <option value="">복식 선수 1 (남)</option>
                   {classStudents.filter(s => s.gender === 'M').map(s => (
@@ -576,8 +639,13 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
 
                 <select
                   value={mdPlayer2}
+                  disabled={!canEdit}
                   onChange={(e) => setMdPlayer2(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white text-xs focus:outline-none focus:border-[#E2FF00]"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:outline-none transition ${
+                    !canEdit 
+                      ? 'bg-[#0d1424] border-white/5 text-white/40 cursor-not-allowed' 
+                      : 'bg-[#12192B] border-white/10 text-white focus:border-[#E2FF00]'
+                  }`}
                 >
                   <option value="">복식 선수 2 (남)</option>
                   {classStudents.filter(s => s.gender === 'M').map(s => (
@@ -600,8 +668,13 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select
                   value={wdPlayer1}
+                  disabled={!canEdit}
                   onChange={(e) => setWdPlayer1(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white text-xs focus:outline-none focus:border-[#E2FF00]"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:outline-none transition ${
+                    !canEdit 
+                      ? 'bg-[#0d1424] border-white/5 text-white/40 cursor-not-allowed' 
+                      : 'bg-[#12192B] border-white/10 text-white focus:border-[#E2FF00]'
+                  }`}
                 >
                   <option value="">복식 선수 1 (여)</option>
                   {classStudents.filter(s => s.gender === 'F').map(s => (
@@ -613,8 +686,13 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
 
                 <select
                   value={wdPlayer2}
+                  disabled={!canEdit}
                   onChange={(e) => setWdPlayer2(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white text-xs focus:outline-none focus:border-[#E2FF00]"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:outline-none transition ${
+                    !canEdit 
+                      ? 'bg-[#0d1424] border-white/5 text-white/40 cursor-not-allowed' 
+                      : 'bg-[#12192B] border-white/10 text-white focus:border-[#E2FF00]'
+                  }`}
                 >
                   <option value="">복식 선수 2 (여)</option>
                   {classStudents.filter(s => s.gender === 'F').map(s => (
@@ -637,8 +715,13 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select
                   value={xdPlayerM}
+                  disabled={!canEdit}
                   onChange={(e) => setXdPlayerM(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white text-xs focus:outline-none focus:border-[#E2FF00]"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:outline-none transition ${
+                    !canEdit 
+                      ? 'bg-[#0d1424] border-white/5 text-white/40 cursor-not-allowed' 
+                      : 'bg-[#12192B] border-white/10 text-white focus:border-[#E2FF00]'
+                  }`}
                 >
                   <option value="">남학생 선수</option>
                   {classStudents.filter(s => s.gender === 'M').map(s => (
@@ -650,8 +733,13 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
 
                 <select
                   value={xdPlayerF}
+                  disabled={!canEdit}
                   onChange={(e) => setXdPlayerF(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#12192B] border border-white/10 text-white text-xs focus:outline-none focus:border-[#E2FF00]"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:outline-none transition ${
+                    !canEdit 
+                      ? 'bg-[#0d1424] border-white/5 text-white/40 cursor-not-allowed' 
+                      : 'bg-[#12192B] border-white/10 text-white focus:border-[#E2FF00]'
+                  }`}
                 >
                   <option value="">여학생 선수</option>
                   {classStudents.filter(s => s.gender === 'F').map(s => (
@@ -666,13 +754,22 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full py-4 px-6 rounded-xl bg-[#E2FF00] hover:bg-[#c9e600] text-black font-extrabold text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(226,255,0,0.3)] transition transform active:scale-[0.99] disabled:opacity-50"
+              disabled={isSubmitting || !canEdit}
+              className={`w-full py-4 px-6 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 transition transform active:scale-[0.99] ${
+                !canEdit
+                  ? 'bg-white/5 border border-white/10 text-white/40 cursor-not-allowed'
+                  : 'bg-[#E2FF00] hover:bg-[#c9e600] text-black shadow-[0_0_20px_rgba(226,255,0,0.3)]'
+              }`}
             >
               {isSubmitting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
                   <span>Firebase rosters 컬렉션에 저장 중...</span>
+                </>
+              ) : !canEdit ? (
+                <>
+                  <Lock className="w-4 h-4 text-white/40" />
+                  <span>출전명단 작성 권한 없음 (조회 전용)</span>
                 </>
               ) : (
                 <>

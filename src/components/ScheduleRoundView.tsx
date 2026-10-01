@@ -99,7 +99,7 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
   const isSportsRep = isCaptainRole(currentUser?.role);
   const isReferee = isRefereeRole(currentUser?.role);
   const canManageLineup = isSportsRep || isStudentCouncil || isTeacher;
-  const canEnterResults = isSportsRep || isStudentCouncil || isTeacher;
+  const canEnterResults = isTeacher || isStudentCouncil;
 
   const handleDeleteExecute = () => {
     if (!isTeacher || !deleteConfirmModal) return;
@@ -353,13 +353,24 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
                       </span>
                     )}
 
-                    <button
-                      onClick={() => onOpenLineupModal(tie.id, tie.roundId)}
-                      className="px-3 py-1 rounded-lg text-xs font-semibold bg-[#E2FF00]/10 hover:bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30 transition flex items-center gap-1.5"
-                    >
-                      <UserCheck className="w-3.5 h-3.5" />
-                      <span>출전명단 작성</span>
-                    </button>
+                    {(() => {
+                      const isTeamACaptain = isSportsRep && Number(currentUser?.grade) === Number(teamAGrade) && Number(currentUser?.classNum) === Number(tie.teamAClass);
+                      const isTeamBCaptain = isSportsRep && Number(currentUser?.grade) === Number(teamBGrade) && Number(currentUser?.classNum) === Number(tie.teamBClass);
+                      const canEditThisLineup = isTeacher || isStudentCouncil || isTeamACaptain || isTeamBCaptain;
+                      return (
+                        <button
+                          onClick={() => onOpenLineupModal(tie.id, tie.roundId)}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                            canEditThisLineup
+                              ? 'bg-[#E2FF00]/10 hover:bg-[#E2FF00]/20 text-[#E2FF00] border border-[#E2FF00]/30 font-bold'
+                              : 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10'
+                          }`}
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>{canEditThisLineup ? '출전명단 작성/수정' : '출전명단 보기'}</span>
+                        </button>
+                      );
+                    })()}
 
                     {(isTeacher || isStudentCouncil) && (
                       <button
