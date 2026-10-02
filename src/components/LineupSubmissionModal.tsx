@@ -172,9 +172,17 @@ export const LineupSubmissionModal: React.FC<LineupSubmissionModalProps> = ({
     return `${s.studentNum}번 ${s.name}`;
   };
 
+  const hasCouncil = isCouncilRole(currentUser?.role) || 
+    Boolean(currentUser?.assignedRoles?.includes('council')) || 
+    (currentUser?.grade && currentUser?.classNum && currentUser?.studentNum ? StorageService.isDesignatedRole(currentUser.grade, currentUser.classNum, currentUser.studentNum, 'council') : false);
+
+  const hasCaptain = isCaptainRole(currentUser?.role) || 
+    Boolean(currentUser?.assignedRoles?.includes('captain')) || 
+    (currentUser?.grade && currentUser?.classNum && currentUser?.studentNum ? StorageService.isDesignatedRole(currentUser.grade, currentUser.classNum, currentUser.studentNum, 'captain') : false);
+
   const isTeacher = isAdminRole(currentUser?.role);
-  const isCouncil = isCouncilRole(currentUser?.role);
-  const isClassCaptain = isCaptainRole(currentUser?.role) && 
+  const isCouncil = hasCouncil;
+  const isClassCaptain = hasCaptain && 
     Number(currentUser?.grade) === Number(selectedGrade) && 
     Number(currentUser?.classNum) === Number(selectedClass);
   const canEdit = isTeacher || isCouncil || isClassCaptain;

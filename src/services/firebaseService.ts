@@ -222,11 +222,11 @@ export class FirebaseService {
   }
 
   /**
-   * Check if student was granted a role by teacher
+   * Check if student was granted a role by teacher (supports checking for a specific preferred role if student holds both)
    */
-  static async checkAssignedRole(grade: GradeLevel, classNum: number, studentNum: number): Promise<'captain' | 'council' | 'student'> {
+  static async checkAssignedRole(grade: GradeLevel, classNum: number, studentNum: number, preferredRole?: 'captain' | 'council'): Promise<'captain' | 'council' | 'student'> {
     // 1. Always check local storage first
-    const localRole = StorageService.findAssignedRole(grade, classNum, studentNum);
+    const localRole = StorageService.findAssignedRole(grade, classNum, studentNum, preferredRole);
     if (localRole) return localRole.role;
 
     if (checkIsQuotaExhausted()) {
@@ -235,7 +235,21 @@ export class FirebaseService {
 
     try {
       const docId = `${grade}-${classNum}-${studentNum}`;
+
+      // Check preferred role first if requested
+      if (preferredRole) {
+        const prefSnap = await getDoc(doc(db, 'assigned_roles', `${docId}-${preferredRole}`));
+        if (prefSnap.exists()) return preferredRole;
+      }
       
+      // Check with -captain suffix
+      const roleSnapCap = await getDoc(doc(db, 'assigned_roles', `${docId}-captain`));
+      if (roleSnapCap.exists() && (!preferredRole || preferredRole === 'captain')) return 'captain';
+
+      // Check with -council suffix
+      const roleSnapCoun = await getDoc(doc(db, 'assigned_roles', `${docId}-council`));
+      if (roleSnapCoun.exists() && (!preferredRole || preferredRole === 'council')) return 'council';
+
       // Check assigned_roles collection by direct docId
       const roleRef = doc(db, 'assigned_roles', docId);
       const roleSnap = await getDoc(roleRef);
@@ -244,14 +258,6 @@ export class FirebaseService {
         if (data.role === 'council' || data.role === 'STUDENT_COUNCIL') return 'council';
         if (data.role === 'captain' || data.role === 'SPORTS_REP') return 'captain';
       }
-
-      // Check with -captain suffix
-      const roleSnapCap = await getDoc(doc(db, 'assigned_roles', `${docId}-captain`));
-      if (roleSnapCap.exists()) return 'captain';
-
-      // Check with -council suffix
-      const roleSnapCoun = await getDoc(doc(db, 'assigned_roles', `${docId}-council`));
-      if (roleSnapCoun.exists()) return 'council';
 
       // Query assigned_roles collection by fields
       const q = query(
@@ -262,6 +268,10 @@ export class FirebaseService {
       );
       const querySnap = await getDocs(q);
       if (!querySnap.empty) {
+        if (preferredRole) {
+          const match = querySnap.docs.find(d => d.data().role === preferredRole);
+          if (match) return preferredRole;
+        }
         const data = querySnap.docs[0].data();
         if (data.role === 'council' || data.role === 'STUDENT_COUNCIL') return 'council';
         if (data.role === 'captain' || data.role === 'SPORTS_REP') return 'captain';
@@ -277,7 +287,7 @@ export class FirebaseService {
 
   static async isDesignatedRoleAsync(grade: GradeLevel, classNum: number, studentNum: number, role: 'captain' | 'council'): Promise<boolean> {
     try {
-      const assigned = await this.checkAssignedRole(grade, classNum, studentNum);
+      const assigned = await this.checkAssignedRole(grade, classNum, studentNum, role);
       return assigned === role;
     } catch {
       return false;
@@ -295,7 +305,7 @@ export class FirebaseService {
     role: 'captain' | 'council';
     email?: string;
   }): Promise<{ success: boolean; message: string }> {
-    const docId = `${params.grade}-${params.classNum}-${params.studentNum}`;
+    const docId = `${params.grade}-${params.classNum}-${params.studentNum}-${params.role}`;
     const now = new Date().toISOString();
 
     // 1. Always update local storage first
@@ -369,10 +379,10 @@ export class FirebaseService {
    */
   static async revokeRole(
     docId: string, 
-    details?: { grade?: GradeLevel; classNum?: number; studentNum?: number }
+    details?: { grade?: GradeLevel; classNum?: number; studentNum?: number; role?: 'captain' | 'council' }
   ): Promise<{ success: boolean; message: string }> {
     // 1. Always update local storage first
-    StorageService.removeAssignedRole(docId, details?.grade, details?.classNum, details?.studentNum);
+    StorageService.removeAssignedRole(docId, details?.grade, details?.classNum, details?.studentNum, details?.role);
 
     if (checkIsQuotaExhausted()) {
       return { success: true, message: '학생 권한이 일반 학생으로 해제되었습니다.' };

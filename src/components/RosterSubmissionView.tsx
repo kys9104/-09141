@@ -168,9 +168,17 @@ export const RosterSubmissionView: React.FC<RosterSubmissionViewProps> = ({
     };
   };
 
+  const hasCouncilGrant = isCouncilRole(currentUser?.role) || 
+    Boolean(currentUser?.assignedRoles?.includes('council')) || 
+    (currentUser?.grade && currentUser?.classNum && currentUser?.studentNum ? StorageService.isDesignatedRole(currentUser.grade, currentUser.classNum, currentUser.studentNum, 'council') : false);
+
+  const hasCaptainGrant = isCaptainRole(currentUser?.role) || 
+    Boolean(currentUser?.assignedRoles?.includes('captain')) || 
+    (currentUser?.grade && currentUser?.classNum && currentUser?.studentNum ? StorageService.isDesignatedRole(currentUser.grade, currentUser.classNum, currentUser.studentNum, 'captain') : false);
+
   const isTeacher = isAdminRole(currentUser?.role);
-  const isCouncil = isCouncilRole(currentUser?.role);
-  const isClassCaptain = isCaptainRole(currentUser?.role) && 
+  const isCouncil = hasCouncilGrant;
+  const isClassCaptain = hasCaptainGrant && 
     Number(currentUser?.grade) === Number(selectedGrade) && 
     Number(currentUser?.classNum) === Number(selectedClass);
   const canEdit = isTeacher || isCouncil || isClassCaptain;

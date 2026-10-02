@@ -42,6 +42,7 @@ export interface UserProfile {
   gender?: 'M' | 'F';
   role: UserRole;
   isSportsRep?: boolean;
+  assignedRoles?: ('captain' | 'council')[];
 }
 
 export type MatchCategory = 

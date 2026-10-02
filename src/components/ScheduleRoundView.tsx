@@ -94,9 +94,17 @@ export const ScheduleRoundView: React.FC<ScheduleRoundViewProps> = ({
     m => m.roundId === selectedRoundId
   );
 
+  const hasCouncil = isCouncilRole(currentUser?.role) || 
+    Boolean(currentUser?.assignedRoles?.includes('council')) || 
+    (currentUser?.grade && currentUser?.classNum && currentUser?.studentNum ? StorageService.isDesignatedRole(currentUser.grade, currentUser.classNum, currentUser.studentNum, 'council') : false);
+
+  const hasCaptain = isCaptainRole(currentUser?.role) || 
+    Boolean(currentUser?.assignedRoles?.includes('captain')) || 
+    (currentUser?.grade && currentUser?.classNum && currentUser?.studentNum ? StorageService.isDesignatedRole(currentUser.grade, currentUser.classNum, currentUser.studentNum, 'captain') : false);
+
   const isTeacher = isAdminRole(currentUser?.role);
-  const isStudentCouncil = isCouncilRole(currentUser?.role);
-  const isSportsRep = isCaptainRole(currentUser?.role);
+  const isStudentCouncil = hasCouncil;
+  const isSportsRep = hasCaptain;
   const isReferee = isRefereeRole(currentUser?.role);
   const canManageLineup = isSportsRep || isStudentCouncil || isTeacher;
   const canEnterResults = isTeacher || isStudentCouncil;

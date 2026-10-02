@@ -192,7 +192,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       return;
     }
 
-    const docId = `${targetGrade}-${targetClass}-${student.studentNum}`;
+    const docId = `${targetGrade}-${targetClass}-${student.studentNum}-${targetRole}`;
     const newRecord: RoleAssignment = {
       id: docId,
       grade: targetGrade,
@@ -223,7 +223,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setAssignedRolesList(prev => {
       const idx = prev.findIndex(p => 
         p.id === newRecord.id || 
-        (p.grade === targetGrade && p.classNum === targetClass && p.studentNum === student.studentNum)
+        (Number(p.grade) === Number(targetGrade) && Number(p.classNum) === Number(targetClass) && Number(p.studentNum) === Number(student.studentNum) && p.role === targetRole)
       );
       if (idx >= 0) {
         const updated = [...prev];
@@ -260,28 +260,28 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Revoke Role (Instant local update + Background Firestore deletion)
   const handleRevokeRole = async (
     docId: string, 
-    roleName: string, 
+    roleName: 'captain' | 'council', 
     studentName: string,
     grade?: GradeLevel,
     classNum?: number,
     studentNum?: number
   ) => {
-    if (!confirm(`정말 [${studentName}] 학생의 ${roleName === 'council' ? '학생자치회' : '반장/체육부장'} 권한을 해제하시겠습니까?`)) return;
+    if (!confirm(`정말 [${studentName}] 학생의 [${roleName === 'council' ? '학생자치회' : '반장/체육부장'}] 권한을 해제하시겠습니까?\n\n(참고: 학생이 다른 권한도 함께 보유 중인 경우, 선택한 해당 권한만 단독으로 안전하게 해제됩니다)`)) return;
     
     // 1. Instant UI & Storage removal (0.01s response)
-    StorageService.removeAssignedRole(docId, grade, classNum, studentNum);
+    StorageService.removeAssignedRole(docId, grade, classNum, studentNum, roleName);
     setAssignedRolesList(prev => prev.filter(p => {
       if (p.id === docId) return false;
       if (grade !== undefined && classNum !== undefined && studentNum !== undefined) {
-        if (p.grade === grade && p.classNum === classNum && p.studentNum === studentNum) return false;
+        if (Number(p.grade) === Number(grade) && Number(p.classNum) === Number(classNum) && Number(p.studentNum) === Number(studentNum) && p.role === roleName) return false;
       }
       return true;
     }));
 
-    setRoleMsg({ type: 'success', text: `✓ [${studentName}] 학생의 권한이 정상적으로 해제되었습니다.` });
+    setRoleMsg({ type: 'success', text: `✓ [${studentName}] 학생의 [${roleName === 'council' ? '학생자치회' : '반장/체육부장'}] 권한이 정상적으로 해제되었습니다.` });
 
     // 2. Background Firestore delete
-    FirebaseService.revokeRole(docId, { grade, classNum, studentNum }).catch(err => {
+    FirebaseService.revokeRole(docId, { grade, classNum, studentNum, role: roleName }).catch(err => {
       console.warn('Background revoke error:', err);
     });
   };
@@ -591,21 +591,66 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               </div>
 
               {/* Selected Student Preview Card */}
-              {selectedStudentObj && (
-                <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-xs">
-                  <div className="text-[11px] text-white/50 mb-1 font-mono">권한 부여 대상 확인:</div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-sm">
-                      {targetGrade}학년 {targetClass}반 {selectedStudentObj.studentNum}번 {selectedStudentObj.name}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      targetRole === 'council' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    }`}>
-                      {targetRole === 'council' ? '학생자치회' : '반장/체육부장'}
-                    </span>
+              {selectedStudentObj && (() => {
+                const currentRoles = assignedRolesList.filter(
+                  r => Number(r.grade) === Number(targetGrade) && 
+                       Number(r.classNum) === Number(targetClass) && 
+                       Number(r.studentNum) === Number(selectedStudentObj.studentNum)
+                );
+                const hasCouncil = currentRoles.some(r => r.role === 'council');
+                const hasCaptain = currentRoles.some(r => r.role === 'captain');
+                const isAlreadyTargetRole = (targetRole === 'council' && hasCouncil) || (targetRole === 'captain' && hasCaptain);
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-[#0A0F1D] border border-white/10 text-xs space-y-2">
+                    <div className="text-[11px] text-white/50 font-mono">권한 부여 대상 확인:</div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-sm">
+                        {targetGrade}학년 {targetClass}반 {selectedStudentObj.studentNum}번 {selectedStudentObj.name}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        targetRole === 'council' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      }`}>
+                        +{targetRole === 'council' ? '학생자치회' : '반장/체육부장'} 부여
+                      </span>
+                    </div>
+
+                    {/* Current Roles Status */}
+                    <div className="pt-1.5 border-t border-white/5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <span className="text-white/40">현재 보유 권한:</span>
+                      {currentRoles.length === 0 ? (
+                        <span className="text-white/40 font-mono">일반 학생 (미부여)</span>
+                      ) : (
+                        currentRoles.map(r => (
+                          <span
+                            key={r.id}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              r.role === 'council'
+                                ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                            }`}
+                          >
+                            {r.role === 'council' ? '학생자치회' : '반장/체육부장'}
+                          </span>
+                        ))
+                      )}
+                      {hasCouncil && hasCaptain && (
+                        <span className="text-amber-300 font-bold ml-auto text-[10px]">⭐ 중복 권한 보유 중</span>
+                      )}
+                    </div>
+
+                    {isAlreadyTargetRole ? (
+                      <div className="text-[11px] text-amber-300/80 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                        ℹ️ 이 학생은 이미 [{targetRole === 'council' ? '학생자치회' : '반장/체육부장'}] 권한을 보유하고 있습니다.
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-white/40">
+                        💡 학생자치회와 반장/체육부장 권한은 한 학생에게 동시에 중복 부여할 수 있습니다.
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <button
                 type="submit"

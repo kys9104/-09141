@@ -29,10 +29,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 }) => {
   const [grade, setGrade] = useState<GradeLevel>(1);
   const [classNum, setClassNum] = useState<number>(1);
-  const [studentNum, setStudentNum] = useState<number>(10);
-  const [name, setName] = useState<string>('선준혁');
+  const [studentNum, setStudentNum] = useState<number>(1);
+  const [name, setName] = useState<string>('곽승준');
   // 4 Roles: captain (반장/체육부장), council (학생자치회), admin (체육교사), student (일반 학생)
-  const [role, setRole] = useState<UserRole>('captain');
+  const [role, setRole] = useState<UserRole>('student');
   const [teacherPassword, setTeacherPassword] = useState<string>('');
   const [studentCouncilPassword, setStudentCouncilPassword] = useState<string>('');
   const [showCouncilPassword, setShowCouncilPassword] = useState<boolean>(false);
@@ -169,7 +169,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         const isLocalApproved = StorageService.isDesignatedRole(grade, classNum, studentNum, 'captain');
         let isCloudApproved = isLocalApproved;
         if (!isCloudApproved) {
-          const cloudRole = await FirebaseService.checkAssignedRole(grade, classNum, studentNum);
+          const cloudRole = await FirebaseService.checkAssignedRole(grade, classNum, studentNum, 'captain');
           isCloudApproved = (cloudRole === 'captain');
         }
 
@@ -182,6 +182,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         }
 
         const studentGender = classRoster.find(s => s.num === studentNum)?.gender;
+        const allAssigned: ('captain' | 'council')[] = ['captain'];
+        if (StorageService.isDesignatedRole(grade, classNum, studentNum, 'council')) {
+          allAssigned.push('council');
+        }
+
         const captainProfile: UserProfile = {
           grade,
           classNum,
@@ -189,7 +194,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           name: name.trim(),
           gender: studentGender,
           role: 'captain',
-          isSportsRep: true
+          isSportsRep: true,
+          assignedRoles: allAssigned
         };
         // Update local and firestore profile (does NOT overwrite other classes' reps)
         StorageService.setSportsRepresentative(grade, classNum, name.trim());
@@ -217,7 +223,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         const isLocalApproved = StorageService.isDesignatedRole(grade, classNum, studentNum, 'council');
         let isCloudApproved = isLocalApproved;
         if (!isCloudApproved) {
-          const cloudRole = await FirebaseService.checkAssignedRole(grade, classNum, studentNum);
+          const cloudRole = await FirebaseService.checkAssignedRole(grade, classNum, studentNum, 'council');
           isCloudApproved = (cloudRole === 'council');
         }
 
@@ -230,13 +236,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         }
 
         const studentGender = classRoster.find(s => s.num === studentNum)?.gender;
+        const allAssigned: ('captain' | 'council')[] = ['council'];
+        if (StorageService.isDesignatedRole(grade, classNum, studentNum, 'captain')) {
+          allAssigned.push('captain');
+        }
+
         const councilProfile: UserProfile = {
           grade,
           classNum,
           studentNum,
           name: name.trim(),
           gender: studentGender,
-          role: 'council'
+          role: 'council',
+          isSportsRep: allAssigned.includes('captain'),
+          assignedRoles: allAssigned
         };
         StorageService.saveCurrentUser(councilProfile);
         FirebaseService.saveUserProfile(councilProfile).catch(() => {});

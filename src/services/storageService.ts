@@ -170,7 +170,7 @@ export class StorageService {
     } catch (e) {
       console.error('Failed to parse sports reps', e);
     }
-    return DEFAULT_SPORTS_REPRESENTATIVES;
+    return {};
   }
 
   static saveSportsRepresentatives(reps: Record<string, string>): void {
@@ -196,31 +196,29 @@ export class StorageService {
       if (data) {
         const parsed: AssignedRoleRecord[] = JSON.parse(data);
         if (Array.isArray(parsed)) {
-          // Merge defaults with saved so required roles are guaranteed to exist
-          const map = new Map<string, AssignedRoleRecord>();
-          DEFAULT_ASSIGNED_ROLES.forEach(r => map.set(`${r.grade}-${r.classNum}-${r.studentNum}-${r.role}`, r as AssignedRoleRecord));
-          parsed.forEach(r => map.set(`${r.grade}-${r.classNum}-${r.studentNum}-${r.role}`, r));
-          return Array.from(map.values());
+          // Filter out any legacy sample data (assignedAt: 2026-03-01T00:00:00Z)
+          const clean = parsed.filter(r => r.assignedAt !== '2026-03-01T00:00:00Z');
+          return clean;
         }
       }
     } catch (e) {
       console.error('Failed to parse assigned roles', e);
     }
-    return DEFAULT_ASSIGNED_ROLES as AssignedRoleRecord[];
+    return [];
   }
 
   static saveAssignedRoles(roles: AssignedRoleRecord[]): void {
     try {
-      if (!roles || roles.length === 0) return;
-      const current = this.getAssignedRoles();
+      if (!roles) return;
+      const cleanRoles = roles.filter(r => r.assignedAt !== '2026-03-01T00:00:00Z');
       const map = new Map<string, AssignedRoleRecord>();
-      current.forEach(r => {
+      cleanRoles.forEach(r => {
+        // Guarantee distinct key for duplicate roles: grade-class-num-role
         const key = `${r.grade}-${r.classNum}-${r.studentNum}-${r.role}`;
-        map.set(key, r);
-      });
-      roles.forEach(r => {
-        const key = `${r.grade}-${r.classNum}-${r.studentNum}-${r.role}`;
-        map.set(key, r);
+        map.set(key, {
+          ...r,
+          id: r.id || key
+        });
       });
       localStorage.setItem(STORAGE_KEYS.ASSIGNED_ROLES, JSON.stringify(Array.from(map.values())));
     } catch (e) {
@@ -230,18 +228,24 @@ export class StorageService {
 
   static setAssignedRole(record: AssignedRoleRecord): void {
     const roles = this.getAssignedRoles();
+    const roleId = record.id || `${record.grade}-${record.classNum}-${record.studentNum}-${record.role}`;
+    const safeRecord: AssignedRoleRecord = { ...record, id: roleId };
+
+    // Find if student already has THIS EXACT role (captain or council)
     const existingIndex = roles.findIndex(r => 
-      r.id === record.id || 
-      (Number(r.grade) === Number(record.grade) && 
-       Number(r.classNum) === Number(record.classNum) && 
-       Number(r.studentNum) === Number(record.studentNum) &&
-       r.role === record.role)
+      r.id === safeRecord.id || 
+      (Number(r.grade) === Number(safeRecord.grade) && 
+       Number(r.classNum) === Number(safeRecord.classNum) && 
+       Number(r.studentNum) === Number(safeRecord.studentNum) &&
+       r.role === safeRecord.role)
     );
+
     if (existingIndex >= 0) {
-      roles[existingIndex] = record;
+      roles[existingIndex] = safeRecord;
     } else {
-      roles.push(record);
+      roles.push(safeRecord);
     }
+
     try {
       localStorage.setItem(STORAGE_KEYS.ASSIGNED_ROLES, JSON.stringify(roles));
     } catch (e) {
@@ -249,15 +253,19 @@ export class StorageService {
     }
 
     // If role is captain, also sync with sports representative
-    if (record.role === 'captain') {
-      this.setSportsRepresentative(record.grade, record.classNum, record.name);
+    if (safeRecord.role === 'captain') {
+      this.setSportsRepresentative(safeRecord.grade, safeRecord.classNum, safeRecord.name);
     }
   }
 
-  static removeAssignedRole(id: string, grade?: GradeLevel, classNum?: number, studentNum?: number): void {
+  static removeAssignedRole(id: string, grade?: GradeLevel, classNum?: number, studentNum?: number, role?: 'captain' | 'council'): void {
     const roles = this.getAssignedRoles().filter(r => {
       if (r.id === id) return false;
-      if (grade !== undefined && classNum !== undefined && studentNum !== undefined) {
+      if (role) {
+        if (r.role === role && grade !== undefined && classNum !== undefined && studentNum !== undefined) {
+          if (Number(r.grade) === Number(grade) && Number(r.classNum) === Number(classNum) && Number(r.studentNum) === Number(studentNum)) return false;
+        }
+      } else if (grade !== undefined && classNum !== undefined && studentNum !== undefined) {
         if (Number(r.grade) === Number(grade) && Number(r.classNum) === Number(classNum) && Number(r.studentNum) === Number(studentNum)) return false;
       }
       return true;
@@ -268,12 +276,17 @@ export class StorageService {
       console.error('Failed to save assigned roles after removal', e);
     }
 
-    // If grade and classNum provided, clean up sports representative as well
-    if (grade && classNum) {
-      const reps = this.getSportsRepresentatives();
-      const key = `${grade}-${classNum}`;
-      if (reps[key]) {
-        delete reps[key];
+    // If captain role was removed, clean up sports representative ONLY IF no other captain remains for that class
+    if (role === 'captain' || !role) {
+      if (grade && classNum) {
+        const remainingCaptain = roles.find(r => Number(r.grade) === Number(grade) && Number(r.classNum) === Number(classNum) && r.role === 'captain');
+        const reps = this.getSportsRepresentatives();
+        const key = `${grade}-${classNum}`;
+        if (remainingCaptain) {
+          reps[key] = remainingCaptain.name;
+        } else {
+          delete reps[key];
+        }
         this.saveSportsRepresentatives(reps);
       }
     }

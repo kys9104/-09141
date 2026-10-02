@@ -111,7 +111,9 @@ export const MatchResultEntryModal: React.FC<MatchResultEntryModalProps> = ({
   };
 
   const isTeacher = isAdminRole(currentUser?.role);
-  const isCouncil = isCouncilRole(currentUser?.role);
+  const isCouncil = isCouncilRole(currentUser?.role) || 
+    Boolean(currentUser?.assignedRoles?.includes('council')) || 
+    (currentUser?.grade && currentUser?.classNum && currentUser?.studentNum ? StorageService.isDesignatedRole(currentUser.grade, currentUser.classNum, currentUser.studentNum, 'council') : false);
   const canSubmitResult = isTeacher || isCouncil;
 
   const handleDeleteResult = () => {
