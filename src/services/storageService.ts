@@ -54,15 +54,18 @@ export class StorageService {
       const incoming = incomingList.find(m => m.id === baseMatch.id);
       if (!incoming) return baseMatch;
 
-      // If cached match has the previous default date for round 6, sync it to updated round date
+      // If cached match has the previous default date for round 5 or 6, sync it to updated round date
+      const isOldRound5Date = baseMatch.roundId === 5 && (incoming.date === '2026. 10. 28 (수)' || incoming.date?.includes('10. 28') || incoming.date?.includes('10.28'));
+      const isOldRound5Deadline = baseMatch.roundId === 5 && (incoming.deadlineDate === '2026-10-27 23:59' || incoming.deadlineDate?.includes('10-27'));
+
       const isOldRound6Date = baseMatch.roundId === 6 && (incoming.date === '2026. 11. 04 (수)' || incoming.date?.includes('11. 04') || incoming.date?.includes('11.04'));
       const isOldRound6Deadline = baseMatch.roundId === 6 && (incoming.deadlineDate === '2026-11-03 23:59' || incoming.deadlineDate?.includes('11-03'));
 
       return {
         ...baseMatch,
         ...incoming,
-        date: isOldRound6Date ? baseMatch.date : (incoming.date || baseMatch.date),
-        deadlineDate: isOldRound6Deadline ? baseMatch.deadlineDate : (incoming.deadlineDate || baseMatch.deadlineDate),
+        date: (isOldRound5Date || isOldRound6Date) ? baseMatch.date : (incoming.date || baseMatch.date),
+        deadlineDate: (isOldRound5Deadline || isOldRound6Deadline) ? baseMatch.deadlineDate : (incoming.deadlineDate || baseMatch.deadlineDate),
         subMatches: baseMatch.subMatches.map(baseSm => {
           const incomingSm = incoming.subMatches?.find(s => s.id === baseSm.id || s.category === baseSm.category);
           if (!incomingSm) return baseSm;
